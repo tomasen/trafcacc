@@ -1,2 +1,2 @@
 # traicacc
-traffic accelerator for tcp/udp
+traffic accelerate proxy for tcp/udp
