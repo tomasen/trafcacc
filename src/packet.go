@@ -18,40 +18,35 @@ var (
 // MARK: upstream
 func sendpkt(p packet) {
 	u := upool.next()
+
+	// encapsule packet
+	hdr := make([]byte, 10)
+	binary.LittleEndian.PutUint32(hdr[:4], p.connid)
+	binary.LittleEndian.PutUint32(hdr[4:8], p.seqid)
+	binary.LittleEndian.PutUint16(hdr[8:10], uint16(len(p.buf)+8))
+	buf := append(hdr, p.buf...)
+
 	if u.conn == nil {
 		// dial
 		switch u.proto {
 		case "tcp":
 			conn, err := net.Dial("tcp", u.addr)
 			if err != nil {
-				// TODO: reply error
+				// TODO: reply error?
 
 				return
 			}
 			u.conn = conn
-			// TODO: keep reading
+			// TODO: build reading slaves
 		case "udp":
 			// TODO
 		}
 	}
 
-	buf := p.buf
-	if !isbackend {
-		// encapsule packet
-		hdr := make([]byte, 10)
-		binary.LittleEndian.PutUint32(hdr[:4], p.connid)
-		binary.LittleEndian.PutUint32(hdr[4:8], p.seqid)
-		binary.LittleEndian.PutUint16(hdr[8:10], uint16(len(p.buf)+8))
-		buf = append(hdr, buf...)
-	}
-
 	_, err := u.conn.Write(buf)
 	if err != nil {
 		u.conn = nil
-		// if p.reply != nil {
-		// 	// reply error
-		// 	p.reply <- packet{p.connid, p.seqid, nil, nil}
-		// }
+		// TODO: reply error?
 		return
 	}
 }
