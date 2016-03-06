@@ -34,24 +34,18 @@ type serv struct {
 type upstream struct {
 	proto string
 	addr  string
-	conns map[uint32]net.Conn
-	next  *upstream
+	conn  net.Conn
 }
 
 var (
-	isbackend  = true
-	isfrontend = false
+	isbackend = true
 )
 
 // Accelerate traffic start by flag strings
-func Accelerate(l, u string) {
-	ee := uppack(l)
-	if len(ee) == 1 && ee[0].portBegin == ee[0].portEnd {
-		isbackend = false
-		isfrontend = true
-	}
-	for _, e := range ee {
+func Accelerate(l, u string, backend bool) {
+	isbackend = backend
 
+	for _, e := range parse(l) {
 		// begin to listen
 		for p := e.portBegin; p < e.portEnd; p++ {
 			// listen to lhost:lport+p
@@ -60,28 +54,15 @@ func Accelerate(l, u string) {
 		}
 	}
 
-	var u0, pu *upstream
-	for _, e := range uppack(u) {
+	for _, e := range parse(u) {
 		for p := e.portBegin; p < e.portEnd; p++ {
 			u := upstream{proto: e.proto, addr: net.JoinHostPort(e.host, strconv.Itoa(p))}
-			if pu != nil {
-				pu.next = &u
-			} else {
-				u0 = &u
-			}
-			pu = &u
+			upool.append(&u)
 		}
 	}
-	if pu != nil {
-		pu.next = u0
-	} else {
-		log.Fatal("no upstreams")
-	}
 
-	for {
-		p := <-pktqueue
-		go pu.sendpkt(p)
-		pu = pu.next
+	if upool.end == 0 {
+		log.Fatal("no upstreams")
 	}
 }
 
@@ -121,11 +102,18 @@ func (s *serv) acceptTCP() {
 			log.Fatal(err)
 		}
 		tempDelay = 0
-		go s.handleTCP(conn)
+		if isbackend {
+			go s.hdlPacket(conn)
+		} else {
+			go s.hdlRaw(conn)
+		}
 	}
 }
 
-func (s *serv) handleTCP(conn net.Conn) {
+func (s *serv) hdlPacket(conn net.Conn) {
+}
+
+func (s *serv) hdlRaw(conn net.Conn) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Println("Recovered in", r, ":", string(debug.Stack()))
@@ -134,26 +122,12 @@ func (s *serv) handleTCP(conn net.Conn) {
 	defer conn.Close()
 
 	connid := atomic.AddUint32(&atomicid, 1)
+	cpool.add(connid, conn)
+
 	seqid := uint32(0)
 
-	reply := make(chan packet, 1)
-	go func() {
-		for {
-			p := <-reply
-			if p.buf == nil {
-				conn.Close()
-				return
-			}
-			_, err := conn.Write(p.buf)
-			if err != nil {
-				log.Println("write to client error", p.connid, err)
-				return
-			}
-		}
-	}()
-
 	// send 0 length data to build connection
-	s.sendup(packet{connid, seqid, nil, reply})
+	sendpkt(packet{connid, seqid, nil})
 
 	buf := make([]byte, buffersize)
 	for {
@@ -165,6 +139,6 @@ func (s *serv) handleTCP(conn net.Conn) {
 			break
 		}
 		seqid++
-		s.sendup(packet{connid, seqid, buf, reply})
+		sendpkt(packet{connid, seqid, buf})
 	}
 }

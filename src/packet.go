@@ -9,42 +9,26 @@ type packet struct {
 	connid uint32
 	seqid  uint32
 	buf    []byte
-	reply  chan packet
 }
 
 var (
 	atomicid uint32
-	pktqueue = make(chan packet, maxpacketqueue)
 )
 
-// send to upstream
-func (s *serv) sendup(p packet) {
-	select {
-	case pktqueue <- p:
-	default:
-	}
-}
-
 // MARK: upstream
-func (u *upstream) sendpkt(p packet) {
-	// TODO: 是否建立新连接基于:
-	// ??? 是否 buf 是 nil
-	// 是否已经建立过连接，没有则必然建立
-	// backend 是新的connid一定就是要建立新连接
-	// 是 front 还是 backend
-	// backend 的话，不是新的connid就使用上一个 connid 的连接
-
-	if u.conns[p.connid] == nil {
+func sendpkt(p packet) {
+	u := upool.next()
+	if u.conn == nil {
 		// dial
 		switch u.proto {
 		case "tcp":
 			conn, err := net.Dial("tcp", u.addr)
 			if err != nil {
-				// reply error
-				p.reply <- p
+				// TODO: reply error
+
 				return
 			}
-			u.conns[p.connid] = conn
+			u.conn = conn
 			// TODO: keep reading
 		case "udp":
 			// TODO
@@ -52,7 +36,7 @@ func (u *upstream) sendpkt(p packet) {
 	}
 
 	buf := p.buf
-	if isfrontend {
+	if !isbackend {
 		// encapsule packet
 		hdr := make([]byte, 10)
 		binary.LittleEndian.PutUint32(hdr[:4], p.connid)
@@ -61,13 +45,13 @@ func (u *upstream) sendpkt(p packet) {
 		buf = append(hdr, buf...)
 	}
 
-	_, err := u.conns[p.connid].Write(buf)
+	_, err := u.conn.Write(buf)
 	if err != nil {
-		delete(u.conns, p.connid)
-		if p.reply != nil {
-			// reply error
-			p.reply <- packet{p.connid, p.seqid, nil, nil}
-		}
+		u.conn = nil
+		// if p.reply != nil {
+		// 	// reply error
+		// 	p.reply <- packet{p.connid, p.seqid, nil, nil}
+		// }
 		return
 	}
 }

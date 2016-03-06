@@ -8,7 +8,7 @@ import (
 )
 
 // 分析输入的控制参数
-func uppack(s string) (e []endpoint) {
+func parse(s string) (e []endpoint) {
 	x := strings.Split(s, ",")
 	if len(x) < 1 {
 		log.Fatal("argument error", s)
