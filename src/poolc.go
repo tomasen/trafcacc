@@ -11,15 +11,8 @@ type poolc struct {
 	pool map[uint32]net.Conn
 }
 
-type poolu struct {
-	pl  []*upstream
-	id  int
-	end int
-}
-
 var (
 	cpool = poolc{}
-	upool = poolu{}
 )
 
 func (p *poolc) add(id uint32, conn net.Conn) {
@@ -38,14 +31,4 @@ func (p *poolc) del(id uint32) {
 	p.mux.Lock()
 	defer p.mux.Unlock()
 	delete(p.pool, id)
-}
-
-func (p *poolu) append(u *upstream) {
-	p.pl = append(p.pl, u)
-	p.end++
-}
-
-func (p *poolu) next() *upstream {
-	p.id++
-	return p.pl[p.id%p.end]
 }
