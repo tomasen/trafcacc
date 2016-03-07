@@ -32,6 +32,7 @@ type serv struct {
 	proto string
 	addr  string
 	ln    net.Listener
+	ta    *trafcacc
 }
 
 type upstream struct {
@@ -42,19 +43,32 @@ type upstream struct {
 	decoder *gob.Decoder
 }
 
-var (
-	isbackend = true
-)
+type trafcacc struct {
+	isbackend bool
+	atomicid  uint32
+	cpool     *poolc
+	upool     *poolu
+	epool     *poole
+}
+
+func Accelerate(l, u string, backend bool) {
+	t := &trafcacc{}
+	t.cpool = &poolc{}
+	t.upool = &poolu{}
+	t.epool = &poole{}
+	t.accelerate(l, u, backend)
+}
 
 // Accelerate traffic start by flag strings
-func Accelerate(l, u string, backend bool) {
-	isbackend = backend
+func (t *trafcacc) accelerate(l, u string, backend bool) {
+	// TODO: make sure this only run once
+	t.isbackend = backend
 
 	for _, e := range parse(l) {
 		// begin to listen
 		for p := e.portBegin; p < e.portEnd; p++ {
 			// listen to lhost:lport+p
-			s := serv{proto: e.proto, addr: net.JoinHostPort(e.host, strconv.Itoa(p))}
+			s := serv{proto: e.proto, addr: net.JoinHostPort(e.host, strconv.Itoa(p)), ta: t}
 			s.listen()
 		}
 	}
@@ -62,11 +76,11 @@ func Accelerate(l, u string, backend bool) {
 	for _, e := range parse(u) {
 		for p := e.portBegin; p < e.portEnd; p++ {
 			u := upstream{proto: e.proto, addr: net.JoinHostPort(e.host, strconv.Itoa(p))}
-			upool.append(&u)
+			t.upool.append(&u)
 		}
 	}
 
-	if upool.end == 0 {
+	if t.upool.end == 0 {
 		log.Fatal("no upstreams")
 	}
 }
@@ -79,6 +93,8 @@ func (s *serv) listen() {
 		if err != nil {
 			log.Fatal("net.Listen error", s.addr, err)
 		}
+
+		log.Println("listen to", s.addr)
 		s.ln = ln
 		go s.acceptTCP()
 	case "udp":
@@ -107,7 +123,7 @@ func (s *serv) acceptTCP() {
 			log.Fatal(err)
 		}
 		tempDelay = 0
-		if isbackend {
+		if s.ta.isbackend {
 			go s.hdlPacket(conn)
 		} else {
 			go s.hdlRaw(conn)
@@ -121,8 +137,8 @@ func (s *serv) hdlPacket(conn net.Conn) {
 	//u.encoder = gob.NewEncoder(conn)
 	dec := gob.NewDecoder(conn)
 	enc := gob.NewEncoder(conn)
-	id := epool.add(enc)
-	defer epool.remove(id)
+	id := s.ta.epool.add(enc)
+	defer s.ta.epool.remove(id)
 
 	for {
 		p := packet{}
@@ -130,7 +146,7 @@ func (s *serv) hdlPacket(conn net.Conn) {
 		if err != nil {
 			break
 		}
-		sendRaw(p)
+		s.ta.sendRaw(p)
 	}
 }
 
@@ -143,13 +159,13 @@ func (s *serv) hdlRaw(conn net.Conn) {
 	}()
 	defer conn.Close()
 
-	connid := atomic.AddUint32(&atomicid, 1)
-	cpool.add(connid, conn)
+	connid := atomic.AddUint32(&s.ta.atomicid, 1)
+	s.ta.cpool.add(connid, conn)
 
 	seqid := uint32(1)
 
 	// send 0 length data to build connection
-	sendpkt(packet{connid, seqid, []byte{}})
+	s.ta.sendpkt(packet{connid, seqid, []byte{}})
 
 	buf := make([]byte, buffersize)
 	for {
@@ -161,7 +177,7 @@ func (s *serv) hdlRaw(conn net.Conn) {
 			break
 		}
 		seqid++
-		sendpkt(packet{connid, seqid, buf})
+		s.ta.sendpkt(packet{connid, seqid, buf})
 	}
 }
 

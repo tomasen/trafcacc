@@ -12,15 +12,11 @@ type packet struct {
 	buf    []byte
 }
 
-var (
-	atomicid uint32
-)
-
-func sendRaw(p packet) {
+func (t *trafcacc) sendRaw(p packet) {
 
 	// use cpool here , conn by connid
-	conn := cpool.get(p.connid)
-	u := upool.next()
+	conn := t.cpool.get(p.connid)
+	u := t.upool.next()
 
 	if conn == nil {
 		// dial
@@ -29,10 +25,10 @@ func sendRaw(p packet) {
 			conn, err := net.Dial("tcp", u.addr)
 			if err != nil {
 				// reply error
-				replyPkt(packet{connid: p.connid})
+				t.replyPkt(packet{connid: p.connid})
 				return
 			}
-			cpool.add(p.connid, conn)
+			t.cpool.add(p.connid, conn)
 			go func() {
 				seqid := uint32(1)
 				b := make([]byte, buffersize)
@@ -41,21 +37,21 @@ func sendRaw(p packet) {
 					if err != nil {
 						break
 					}
-					replyPkt(packet{p.connid, seqid, b[0:n]})
+					t.replyPkt(packet{p.connid, seqid, b[0:n]})
 					seqid++
 				}
 			}()
 		}
 	}
 
-	if !cpool.dupChk(p.connid, p.seqid) {
+	if !t.cpool.dupChk(p.connid, p.seqid) {
 		u.conn.Write(p.buf)
 	}
 }
 
 // send packed data to backend
-func sendpkt(p packet) {
-	u := upool.next()
+func (t *trafcacc) sendpkt(p packet) {
+	u := t.upool.next()
 
 	if u.conn == nil {
 		// dial
@@ -64,7 +60,7 @@ func sendpkt(p packet) {
 			conn, err := net.Dial("tcp", u.addr)
 			if err != nil {
 				// reply error
-				replyRaw(packet{connid: p.connid})
+				t.replyRaw(packet{connid: p.connid})
 				return
 			}
 			u.conn = conn
@@ -78,7 +74,7 @@ func sendpkt(p packet) {
 					if err != nil {
 						break
 					}
-					replyRaw(p)
+					t.replyRaw(p)
 				}
 				u.conn.Close()
 				u.conn = nil
@@ -93,30 +89,30 @@ func sendpkt(p packet) {
 		u.conn.Close()
 		u.conn = nil
 		// reply error
-		replyRaw(packet{connid: p.connid})
+		t.replyRaw(packet{connid: p.connid})
 		return
 	}
 }
 
-func replyRaw(p packet) {
-	conn := cpool.get(p.connid)
+func (t *trafcacc) replyRaw(p packet) {
+	conn := t.cpool.get(p.connid)
 	if conn == nil {
 		log.Println("reply to no-exist client conn")
 		return
 	}
 	if p.buf == nil {
 		conn.Close()
-		cpool.del(p.connid)
+		t.cpool.del(p.connid)
 	} else {
 		// get ride of duplicated connid+seqid
 		// TODO: wait in case seqid is out of order
-		if !cpool.dupChk(p.connid, p.seqid) {
+		if !t.cpool.dupChk(p.connid, p.seqid) {
 			conn.Write(p.buf)
 		}
 	}
 }
 
-func replyPkt(p packet) {
-	conn := epool.next()
+func (t *trafcacc) replyPkt(p packet) {
+	conn := t.epool.next()
 	conn.Encode(p)
 }

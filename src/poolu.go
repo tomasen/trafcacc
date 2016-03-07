@@ -12,10 +12,6 @@ type poolu struct {
 	end int
 }
 
-var (
-	upool = poolu{}
-)
-
 func (p *poolu) append(u *upstream) {
 	p.pl = append(p.pl, u)
 	p.end++
@@ -32,10 +28,6 @@ type poole struct {
 	id  int
 	end int
 }
-
-var (
-	epool = poole{}
-)
 
 func (p *poole) add(c *gob.Encoder) int {
 	p.mux.Lock()

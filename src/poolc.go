@@ -14,10 +14,6 @@ type poolc struct {
 	lastseq [maxtrackconn]uint32
 }
 
-var (
-	cpool = poolc{}
-)
-
 func (p *poolc) add(id uint32, conn net.Conn) {
 	p.mux.Lock()
 	defer p.mux.Unlock()
