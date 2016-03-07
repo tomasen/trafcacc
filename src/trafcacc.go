@@ -127,7 +127,7 @@ func (s *serv) hdlRaw(conn net.Conn) {
 	connid := atomic.AddUint32(&atomicid, 1)
 	cpool.add(connid, conn)
 
-	seqid := uint32(0)
+	seqid := uint32(1)
 
 	// send 0 length data to build connection
 	sendpkt(packet{connid, seqid, []byte{}})

@@ -27,7 +27,7 @@ func sendpkt(p packet) {
 			conn, err := net.Dial("tcp", u.addr)
 			if err != nil {
 				// reply error
-				reply(p.connid, nil)
+				reply(packet{p.connid})
 				return
 			}
 			u.conn = conn
@@ -41,13 +41,13 @@ func sendpkt(p packet) {
 					if err == nil {
 						break
 					}
-					replyRaw(p.connid, p.buf)
+					replyRaw(p)
 				}
 				u.conn.Close()
 				u.conn = nil
 			}()
 		case "udp":
-			// TODO
+			// TODO: udp
 		}
 	}
 
@@ -56,22 +56,25 @@ func sendpkt(p packet) {
 		u.conn.Close()
 		u.conn = nil
 		// reply error
-		replyRaw(p.connid, nil)
+		replyRaw(packet{p.connid})
 		return
 	}
 }
 
-func replyRaw(connid uint32, buf []byte) {
-	conn := cpool.get(connid)
+func replyRaw(p packet) {
+	conn := cpool.get(p.connid)
 	if conn == nil {
 		log.Println("reply to no-exist client conn")
 		return
 	}
 	if buf == nil {
 		conn.Close()
-		cpool.del(connid)
+		cpool.del(p.connid)
 	} else {
-		// TODO: get ride of duplicated connid+seqid
-		conn.Write(buf)
+		// get ride of duplicated connid+seqid
+		// TODO: wait in case seqid is out of order
+		if !cpool.dupChk(p.connid, p.seqid) {
+			conn.Write(buf)
+		}
 	}
 }
