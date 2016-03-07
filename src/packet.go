@@ -1,7 +1,8 @@
 package trafcacc
 
 import (
-	"encoding/binary"
+	"encoding/gob"
+	"log"
 	"net"
 )
 
@@ -19,34 +20,58 @@ var (
 func sendpkt(p packet) {
 	u := upool.next()
 
-	// encapsule packet
-	hdr := make([]byte, 10)
-	binary.LittleEndian.PutUint32(hdr[:4], p.connid)
-	binary.LittleEndian.PutUint32(hdr[4:8], p.seqid)
-	binary.LittleEndian.PutUint16(hdr[8:10], uint16(len(p.buf)+8))
-	buf := append(hdr, p.buf...)
-
 	if u.conn == nil {
 		// dial
 		switch u.proto {
 		case "tcp":
 			conn, err := net.Dial("tcp", u.addr)
 			if err != nil {
-				// TODO: reply error?
-
+				// reply error
+				reply(p.connid, nil)
 				return
 			}
 			u.conn = conn
-			// TODO: build reading slaves
+			u.encoder = gob.NewEncoder(conn)
+			u.decoder = gob.NewDecoder(conn)
+			// build reading slaves
+			go func() {
+				for {
+					p0 := &packet{}
+					err := dec.Decode(p)
+					if err == nil {
+						break
+					}
+					replyRaw(p.connid, p.buf)
+				}
+				u.conn.Close()
+				u.conn = nil
+			}()
 		case "udp":
 			// TODO
 		}
 	}
 
-	_, err := u.conn.Write(buf)
+	err := encoder.Encode(&p)
 	if err != nil {
+		u.conn.Close()
 		u.conn = nil
-		// TODO: reply error?
+		// reply error
+		replyRaw(p.connid, nil)
 		return
+	}
+}
+
+func replyRaw(connid uint32, buf []byte) {
+	conn := cpool.get(connid)
+	if conn == nil {
+		log.Println("reply to no-exist client conn")
+		return
+	}
+	if buf == nil {
+		conn.Close()
+		cpool.del(connid)
+	} else {
+		// TODO: get ride of duplicated connid+seqid
+		conn.Write(buf)
 	}
 }

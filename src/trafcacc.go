@@ -1,6 +1,7 @@
 package trafcacc
 
 import (
+	"encoding/gob"
 	"fmt"
 	"io"
 	"log"
@@ -32,9 +33,11 @@ type serv struct {
 }
 
 type upstream struct {
-	proto string
-	addr  string
-	conn  net.Conn
+	proto   string
+	addr    string
+	conn    net.Conn
+	encoder gob.Encoder
+	decoder gob.Decoder
 }
 
 var (
@@ -127,7 +130,7 @@ func (s *serv) hdlRaw(conn net.Conn) {
 	seqid := uint32(0)
 
 	// send 0 length data to build connection
-	sendpkt(packet{connid, seqid, nil})
+	sendpkt(packet{connid, seqid, []byte{}})
 
 	buf := make([]byte, buffersize)
 	for {
