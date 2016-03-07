@@ -118,5 +118,5 @@ func replyRaw(p packet) {
 
 func replyPkt(p packet) {
 	conn := epool.next()
-	conn.Write(p)
+	conn.Encode(p)
 }

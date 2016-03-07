@@ -8,13 +8,15 @@ import (
 	"net"
 	"runtime/debug"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 )
 
 const (
-	maxpacketqueue = 200000
-	buffersize     = 4096 * 2
+	maxpacketqueue      = 200000
+	buffersize          = 4096 * 2
+	_BackendDialTimeout = 5
 )
 
 // client-->server
@@ -161,4 +163,16 @@ func (s *serv) hdlRaw(conn net.Conn) {
 		seqid++
 		sendpkt(packet{connid, seqid, buf})
 	}
+}
+
+func dialTimeout(network, address string, timeout time.Duration) (conn net.Conn, err error) {
+	m := int(timeout / time.Second)
+	for i := 0; i < m; i++ {
+		conn, err = net.DialTimeout(network, address, timeout)
+		if err == nil || !strings.Contains(err.Error(), "can't assign requested address") {
+			break
+		}
+		time.Sleep(time.Second)
+	}
+	return
 }
