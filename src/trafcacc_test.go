@@ -21,9 +21,9 @@ func TestMain(m *testing.M) {
 	// start echo server
 	go servTCPEcho()
 
-	go Accelerate("tcp://:51500", "tcp://127.0.0.1:51501-51510", false)
+	go Accelerate("tcp://:51500", "tcp://127.0.0.1:51501-51504", false)
 
-	go Accelerate("tcp://:51501-51510", "tcp://"+_echoServerAddr, true)
+	go Accelerate("tcp://:51501-51504", "tcp://"+_echoServerAddr, true)
 	// start tcp Accelerate front-end
 	// start tcp Accelerate back-end
 	// start tcp client
@@ -84,7 +84,7 @@ func TestEchoServer(t *testing.T) {
 func testEchoRound(conn net.Conn) {
 	conn.SetDeadline(time.Now().Add(time.Second * 10))
 
-	n := rand.Int()%2048 + 10
+	n := rand.Int() % 28
 	out := randomBytes(n)
 	n0, err := conn.Write(out)
 	if err != nil {

@@ -19,15 +19,6 @@ const (
 	_BackendDialTimeout = 5
 )
 
-// client-->server
-// client-->(serv-->trafcacc-->upstream)==>(serv-->trafcacc-->upstream) --> server
-type endpoint struct {
-	proto     string
-	host      string
-	portBegin int // port begin
-	portEnd   int // port end
-}
-
 type serv struct {
 	proto string
 	addr  string
@@ -66,7 +57,7 @@ func (t *trafcacc) accelerate(l, u string, backend bool) {
 
 	for _, e := range parse(l) {
 		// begin to listen
-		for p := e.portBegin; p < e.portEnd; p++ {
+		for p := e.portBegin; p <= e.portEnd; p++ {
 			// listen to lhost:lport+p
 			s := serv{proto: e.proto, addr: net.JoinHostPort(e.host, strconv.Itoa(p)), ta: t}
 			s.listen()
@@ -74,7 +65,7 @@ func (t *trafcacc) accelerate(l, u string, backend bool) {
 	}
 
 	for _, e := range parse(u) {
-		for p := e.portBegin; p < e.portEnd; p++ {
+		for p := e.portBegin; p <= e.portEnd; p++ {
 			u := upstream{proto: e.proto, addr: net.JoinHostPort(e.host, strconv.Itoa(p))}
 			t.upool.append(&u)
 		}

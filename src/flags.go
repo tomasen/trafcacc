@@ -7,6 +7,15 @@ import (
 	"strings"
 )
 
+// client-->server
+// client-->(serv-->trafcacc-->upstream)==>(serv-->trafcacc-->upstream) --> server
+type endpoint struct {
+	proto     string
+	host      string
+	portBegin int // port begin
+	portEnd   int // port end
+}
+
 // 分析输入的控制参数
 func parse(s string) (e []endpoint) {
 	x := strings.Split(s, ",")
