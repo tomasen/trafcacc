@@ -16,7 +16,44 @@ var (
 	atomicid uint32
 )
 
-// MARK: upstream
+func sendRaw(p packet) {
+
+	// use cpool here , conn by connid
+	conn := cpool.get(p.connid)
+	u := upool.next()
+
+	if conn == nil {
+		// dial
+		switch u.proto {
+		case "tcp":
+			conn, err := net.Dial("tcp", u.addr)
+			if err != nil {
+				// reply error
+				replyPkt(packet{connid: p.connid})
+				return
+			}
+			cpool.add(p.connid, conn)
+			go func() {
+				seqid := uint32(1)
+				b := make([]byte, buffersize)
+				for {
+					n, err := conn.Read(b)
+					if err != nil {
+						break
+					}
+					replyPkt(packet{p.connid, seqid, b[0:n]})
+					seqid++
+				}
+			}()
+		}
+	}
+
+	if !cpool.dupChk(p.connid, p.seqid) {
+		u.conn.Write(p.buf)
+	}
+}
+
+// send packed data to backend
 func sendpkt(p packet) {
 	u := upool.next()
 
@@ -27,7 +64,7 @@ func sendpkt(p packet) {
 			conn, err := net.Dial("tcp", u.addr)
 			if err != nil {
 				// reply error
-				reply(packet{p.connid})
+				replyRaw(packet{connid: p.connid})
 				return
 			}
 			u.conn = conn
@@ -36,9 +73,9 @@ func sendpkt(p packet) {
 			// build reading slaves
 			go func() {
 				for {
-					p0 := &packet{}
-					err := dec.Decode(p)
-					if err == nil {
+					p := packet{}
+					err := u.decoder.Decode(&p)
+					if err != nil {
 						break
 					}
 					replyRaw(p)
@@ -51,12 +88,12 @@ func sendpkt(p packet) {
 		}
 	}
 
-	err := encoder.Encode(&p)
+	err := u.encoder.Encode(&p)
 	if err != nil {
 		u.conn.Close()
 		u.conn = nil
 		// reply error
-		replyRaw(packet{p.connid})
+		replyRaw(packet{connid: p.connid})
 		return
 	}
 }
@@ -67,14 +104,19 @@ func replyRaw(p packet) {
 		log.Println("reply to no-exist client conn")
 		return
 	}
-	if buf == nil {
+	if p.buf == nil {
 		conn.Close()
 		cpool.del(p.connid)
 	} else {
 		// get ride of duplicated connid+seqid
 		// TODO: wait in case seqid is out of order
 		if !cpool.dupChk(p.connid, p.seqid) {
-			conn.Write(buf)
+			conn.Write(p.buf)
 		}
 	}
+}
+
+func replyPkt(p packet) {
+	conn := epool.next()
+	conn.Write(p)
 }

@@ -36,8 +36,8 @@ type upstream struct {
 	proto   string
 	addr    string
 	conn    net.Conn
-	encoder gob.Encoder
-	decoder gob.Decoder
+	encoder *gob.Encoder
+	decoder *gob.Decoder
 }
 
 var (
@@ -113,9 +113,26 @@ func (s *serv) acceptTCP() {
 	}
 }
 
+// handle packed data from client side as backend
 func (s *serv) hdlPacket(conn net.Conn) {
+
+	//u.encoder = gob.NewEncoder(conn)
+	dec := gob.NewDecoder(conn)
+	enc := gob.NewEncoder(conn)
+	id := epool.add(enc)
+	defer epool.remove(id)
+
+	for {
+		p := packet{}
+		err := dec.Decode(&p)
+		if err != nil {
+			break
+		}
+		sendRaw(p)
+	}
 }
 
+// handle raw data from client side as front-end
 func (s *serv) hdlRaw(conn net.Conn) {
 	defer func() {
 		if r := recover(); r != nil {
