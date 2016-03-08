@@ -77,30 +77,36 @@ func TestEchoServer(t *testing.T) {
 
 	n := rand.Int() % 10
 	for i := 0; i < n; i++ {
-		testEchoRound(conn)
+		testEchoRound(conn, t)
 	}
+
+	time.Sleep(time.Second)
+
 }
 
-func testEchoRound(conn net.Conn) {
+func testEchoRound(conn net.Conn, t *testing.T) {
 	conn.SetDeadline(time.Now().Add(time.Second * 10))
 
 	n := rand.Int() % 28
 	out := randomBytes(n)
 	n0, err := conn.Write(out)
 	if err != nil {
-		panic(err)
+		fmt.Println(err)
+		t.Fail()
 	}
 
 	rcv := make([]byte, n)
 	n1, err := io.ReadFull(conn, rcv)
 	if err != nil && err != io.EOF {
-		panic(err)
+		fmt.Println(err)
+		t.Fail()
 	}
 	if !bytes.Equal(out[:n0], rcv[:n1]) {
 		fmt.Println("out: ", n0, "in:", n1)
 
 		fmt.Println("out: ", hex.EncodeToString(out), "in:", hex.EncodeToString(rcv))
-		panic(errors.New("echo server reply is not match"))
+		fmt.Println(errors.New("echo server reply is not match"))
+		t.Fail()
 	}
 }
 

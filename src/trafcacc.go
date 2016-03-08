@@ -8,7 +8,6 @@ import (
 	"net"
 	"runtime/debug"
 	"strconv"
-	"strings"
 	"sync/atomic"
 	"time"
 )
@@ -44,7 +43,7 @@ type trafcacc struct {
 
 func Accelerate(l, u string, backend bool) {
 	t := &trafcacc{}
-	t.cpool = &poolc{}
+	t.cpool = NewPoolc()
 	t.upool = &poolu{}
 	t.epool = &poole{}
 	t.accelerate(l, u, backend)
@@ -114,6 +113,7 @@ func (s *serv) acceptTCP() {
 			log.Fatal(err)
 		}
 		tempDelay = 0
+		log.Println("handler conn", s.ta.isbackend)
 		if s.ta.isbackend {
 			go s.hdlPacket(conn)
 		} else {
@@ -124,7 +124,7 @@ func (s *serv) acceptTCP() {
 
 // handle packed data from client side as backend
 func (s *serv) hdlPacket(conn net.Conn) {
-
+	log.Println("hdlPacket")
 	//u.encoder = gob.NewEncoder(conn)
 	dec := gob.NewDecoder(conn)
 	enc := gob.NewEncoder(conn)
@@ -135,6 +135,7 @@ func (s *serv) hdlPacket(conn net.Conn) {
 		p := packet{}
 		err := dec.Decode(&p)
 		if err != nil {
+			log.Println("hdlPacket err:", err)
 			break
 		}
 		s.ta.sendRaw(p)
@@ -150,17 +151,19 @@ func (s *serv) hdlRaw(conn net.Conn) {
 	}()
 	defer conn.Close()
 
+	log.Println("hdlRaw", s)
 	connid := atomic.AddUint32(&s.ta.atomicid, 1)
+	log.Println("hdlRaw0")
 	s.ta.cpool.add(connid, conn)
-
+	log.Println("hdlRaw1")
 	seqid := uint32(1)
-
+	log.Println("hdlRaw2")
 	// send 0 length data to build connection
 	s.ta.sendpkt(packet{connid, seqid, []byte{}})
-
+	log.Println("hdlRaw3")
 	buf := make([]byte, buffersize)
 	for {
-		_, err := conn.Read(buf)
+		n, err := conn.Read(buf)
 		if err != nil {
 			if err != io.EOF {
 				fmt.Println("read error:", err)
@@ -168,18 +171,6 @@ func (s *serv) hdlRaw(conn net.Conn) {
 			break
 		}
 		seqid++
-		s.ta.sendpkt(packet{connid, seqid, buf})
+		s.ta.sendpkt(packet{connid, seqid, buf[:n]})
 	}
-}
-
-func dialTimeout(network, address string, timeout time.Duration) (conn net.Conn, err error) {
-	m := int(timeout / time.Second)
-	for i := 0; i < m; i++ {
-		conn, err = net.DialTimeout(network, address, timeout)
-		if err == nil || !strings.Contains(err.Error(), "can't assign requested address") {
-			break
-		}
-		time.Sleep(time.Second)
-	}
-	return
 }
