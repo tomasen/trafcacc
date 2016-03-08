@@ -14,7 +14,7 @@ type packet struct {
 }
 
 func (t *trafcacc) sendRaw(p packet) {
-	log.Println("sendRaw", p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
+	log.Println("sendRaw", t.isbackend, p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
 	// use cpool here , conn by connid
 	conn := t.cpool.get(p.Connid)
 	u := t.upool.next()
@@ -46,58 +46,58 @@ func (t *trafcacc) sendRaw(p packet) {
 		}
 	}
 
-	if p.Buf != nil && !t.cpool.dupChk(p.Connid, p.Seqid) {
-		conn.Write(p.Buf)
-	}
+	go func() {
+		if !t.cpool.ensure(p.Connid, p.Seqid) {
+			if p.Buf != nil {
+				conn.Write(p.Buf)
+			}
+		}
+	}()
+
 }
 
 // send packed data to backend
 func (t *trafcacc) sendpkt(p packet) {
-	log.Println("sendpkt", p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
+	log.Println("sendpkt", t.isbackend, p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
 	u := t.upool.next()
 
-	// TODO: use mutex
-	if u.conn == nil {
-		// dial
-		switch u.proto {
-		case "tcp":
-			conn, err := net.Dial("tcp", u.addr)
-			if err != nil {
-				// reply error
-				t.replyRaw(packet{Connid: p.Connid})
-				return
-			}
-			u.conn = conn
-			u.encoder = gob.NewEncoder(conn)
-			u.decoder = gob.NewDecoder(conn)
-			// build reading slaves
-			go func() {
-				for {
-					p := packet{}
-					err := u.decoder.Decode(&p)
-					if err != nil {
-						break
+	func() {
+		u.mux.Lock()
+		defer u.mux.Unlock()
+		if u.conn == nil {
+			// dial
+			switch u.proto {
+			case "tcp":
+				conn, err := net.Dial("tcp", u.addr)
+				if err != nil {
+					// reply error
+					t.replyRaw(packet{Connid: p.Connid})
+					return
+				}
+				u.conn = conn
+				u.encoder = gob.NewEncoder(conn)
+				u.decoder = gob.NewDecoder(conn)
+				// build reading slaves
+				go func() {
+					for {
+						p := packet{}
+						err := u.decoder.Decode(&p)
+						if err != nil {
+							break
+						}
+						t.replyRaw(p)
 					}
-					t.replyRaw(p)
-				}
-				if u.conn != nil {
-					// TODO: use mutex
-					u.conn.Close()
-					u.conn = nil
-				}
-			}()
-		case "udp":
-			// TODO: udp
+					u.close()
+				}()
+			case "udp":
+				// TODO: udp
+			}
 		}
-	}
+	}()
 
 	err := u.encoder.Encode(&p)
 	if err != nil {
-		if u.conn != nil {
-			// TODO: use mutex
-			u.conn.Close()
-			u.conn = nil
-		}
+		u.close()
 		log.Println("sendpkt err:", err)
 		// reply error
 		t.replyRaw(packet{Connid: p.Connid})
@@ -106,7 +106,7 @@ func (t *trafcacc) sendpkt(p packet) {
 }
 
 func (t *trafcacc) replyRaw(p packet) {
-	log.Println("replyRaw", p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
+	log.Println("replyRaw", t.isbackend, p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
 	conn := t.cpool.get(p.Connid)
 
 	if conn == nil {
@@ -117,16 +117,18 @@ func (t *trafcacc) replyRaw(p packet) {
 		conn.Close()
 		t.cpool.del(p.Connid)
 	} else {
-		// get ride of duplicated connid+seqid
-		// TODO: wait in case seqid is out of order
-		if !t.cpool.dupChk(p.Connid, p.Seqid) {
-			conn.Write(p.Buf)
-		}
+		go func() {
+			if !t.cpool.ensure(p.Connid, p.Seqid) {
+				if p.Buf != nil {
+					conn.Write(p.Buf)
+				}
+			}
+		}()
 	}
 }
 
 func (t *trafcacc) replyPkt(p packet) {
-	log.Println("replyPkt", p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
+	log.Println("replyPkt", t.isbackend, p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
 	conn := t.epool.next()
 	conn.Encode(p)
 }

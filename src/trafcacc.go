@@ -25,14 +25,6 @@ type serv struct {
 	ta    *trafcacc
 }
 
-type upstream struct {
-	proto   string
-	addr    string
-	conn    net.Conn
-	encoder *gob.Encoder
-	decoder *gob.Decoder
-}
-
 type trafcacc struct {
 	isbackend bool
 	atomicid  uint32
@@ -41,9 +33,11 @@ type trafcacc struct {
 	epool     *poole
 }
 
+// Accelerate traffic by setup listening port and upstream
 func Accelerate(l, u string, backend bool) {
 	t := &trafcacc{}
-	t.cpool = NewPoolc()
+	t.cpool = newPoolc()
+	t.cpool.ta = t
 	t.upool = &poolu{}
 	t.epool = &poole{}
 	t.accelerate(l, u, backend)

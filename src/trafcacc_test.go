@@ -42,6 +42,11 @@ func TestMain(m *testing.M) {
 		panic(nil)
 	}()
 
+	go func() {
+		time.Sleep(time.Second * 8)
+		panic("case test took too long")
+	}()
+
 	os.Exit(m.Run())
 }
 
