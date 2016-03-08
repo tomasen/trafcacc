@@ -9,6 +9,8 @@ import (
 	"math/rand"
 	"net"
 	"os"
+	"os/signal"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -31,6 +33,15 @@ func TestMain(m *testing.M) {
 	// start udp client
 	rand.Seed(time.Now().UnixNano())
 	time.Sleep(time.Second)
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	signal.Notify(c, syscall.SIGTERM)
+	go func() {
+		<-c
+		panic(nil)
+	}()
+
 	os.Exit(m.Run())
 }
 
@@ -75,7 +86,7 @@ func TestEchoServer(t *testing.T) {
 	}
 	defer conn.Close()
 
-	n := rand.Int() % 10
+	n := rand.Int()%(buffersize*2) + 10
 	for i := 0; i < n; i++ {
 		testEchoRound(conn, t)
 	}
@@ -87,7 +98,7 @@ func TestEchoServer(t *testing.T) {
 func testEchoRound(conn net.Conn, t *testing.T) {
 	conn.SetDeadline(time.Now().Add(time.Second * 10))
 
-	n := rand.Int() % 28
+	n := rand.Int()%204 + 10
 	out := randomBytes(n)
 	n0, err := conn.Write(out)
 	if err != nil {
@@ -104,9 +115,12 @@ func testEchoRound(conn net.Conn, t *testing.T) {
 	if !bytes.Equal(out[:n0], rcv[:n1]) {
 		fmt.Println("out: ", n0, "in:", n1)
 
-		fmt.Println("out: ", hex.EncodeToString(out), "in:", hex.EncodeToString(rcv))
+		fmt.Println("out:", hex.EncodeToString(out))
+		fmt.Println("in: ", hex.EncodeToString(rcv))
 		fmt.Println(errors.New("echo server reply is not match"))
 		t.Fail()
+	} else {
+		fmt.Println("echo test", n0, "pass")
 	}
 }
 

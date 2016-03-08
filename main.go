@@ -3,6 +3,8 @@ package main
 import (
 	"flag"
 	"log"
+	"os"
+	"os/signal"
 	"runtime"
 	"syscall"
 
@@ -42,4 +44,12 @@ func main() {
 	flag.Parse()
 
 	trafcacc.Accelerate(*listen, *upstream, *backend)
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	signal.Notify(c, syscall.SIGTERM)
+
+	<-c
+	// cleanup
+	os.Exit(1)
 }

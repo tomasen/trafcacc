@@ -14,7 +14,7 @@ import (
 
 const (
 	maxpacketqueue      = 200000
-	buffersize          = 4096 * 2
+	buffersize          = 96
 	_BackendDialTimeout = 5
 )
 

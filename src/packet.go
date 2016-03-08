@@ -2,6 +2,7 @@ package trafcacc
 
 import (
 	"encoding/gob"
+	"encoding/hex"
 	"log"
 	"net"
 )
@@ -13,16 +14,17 @@ type packet struct {
 }
 
 func (t *trafcacc) sendRaw(p packet) {
-	log.Println("sendRaw", p)
+	log.Println("sendRaw", p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
 	// use cpool here , conn by connid
 	conn := t.cpool.get(p.Connid)
 	u := t.upool.next()
 
 	if conn == nil {
+		var err error
 		// dial
 		switch u.proto {
 		case "tcp":
-			conn, err := net.Dial("tcp", u.addr)
+			conn, err = net.Dial("tcp", u.addr)
 			if err != nil {
 				// reply error
 				t.replyPkt(packet{Connid: p.Connid})
@@ -51,7 +53,7 @@ func (t *trafcacc) sendRaw(p packet) {
 
 // send packed data to backend
 func (t *trafcacc) sendpkt(p packet) {
-	log.Println("sendpkt", p)
+	log.Println("sendpkt", p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
 	u := t.upool.next()
 
 	// TODO: use mutex
@@ -104,7 +106,7 @@ func (t *trafcacc) sendpkt(p packet) {
 }
 
 func (t *trafcacc) replyRaw(p packet) {
-	log.Println("replyRaw", p)
+	log.Println("replyRaw", p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
 	conn := t.cpool.get(p.Connid)
 
 	if conn == nil {
@@ -124,7 +126,7 @@ func (t *trafcacc) replyRaw(p packet) {
 }
 
 func (t *trafcacc) replyPkt(p packet) {
-	log.Println("replyPkt", p)
+	log.Println("replyPkt", p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
 	conn := t.epool.next()
 	conn.Encode(p)
 }
