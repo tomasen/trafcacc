@@ -43,9 +43,10 @@ func (p *poolc) del(id uint32) {
 	delete(p.pool, id)
 }
 
-func (p *poolc) ensure(connid uint32, seqid uint32) (isDuplicated bool) {
+// TODO: ensure Write in sequence
+func (p *poolc) ensure(pkt packet, conn net.Conn) {
 	// TODO: mutex?
-	idx := connid % maxtrackconn
+	idx := pkt.Connid % maxtrackconn
 	lastseq := p.lastseq[idx]
 
 	cond := p.sedcond[idx]
@@ -56,34 +57,41 @@ func (p *poolc) ensure(connid uint32, seqid uint32) (isDuplicated bool) {
 	}
 	defer func() {
 		cond.L.Lock()
-		p.lastseq[idx] = seqid
+		p.lastseq[idx] = pkt.Seqid
 		cond.L.Unlock()
 		cond.Broadcast()
-		log.Println(p.ta.isbackend, "broadcast", idx, seqid, cond)
+		log.Println(p.ta.isbackend, "broadcast", idx, pkt.Seqid, cond)
 	}()
 
-	log.Println(p.ta.isbackend, "ensure", idx, connid, seqid, lastseq)
-	switch seqid {
-	case lastseq:
+	if pkt.Buf == nil {
+		// TODO: close connection?
+		return
+	}
+
+	log.Println(p.ta.isbackend, "ensure", idx, pkt.Connid, pkt.Seqid, lastseq)
+	switch {
+	case pkt.Seqid <= lastseq:
 		// get ride of duplicated connid+seqid
-		return true
-	case lastseq + 1:
-		return false
+		return
+	case pkt.Seqid == lastseq+1:
+		conn.Write(pkt.Buf)
+		return
 	default:
 		// wait if case seqid is out of order
 		cond.L.Lock()
-		for p.lastseq[idx]+1 != seqid {
-			if p.lastseq[idx] == seqid {
+		for p.lastseq[idx]+1 != pkt.Seqid {
+			if pkt.Seqid <= p.lastseq[idx] {
 				// get ride of duplicated connid+seqid
-				log.Println("get ride 2")
+				log.Println("get ride2", pkt.Seqid, p.lastseq[idx])
 				cond.L.Unlock()
-				return true
+				return
 			}
-			log.Println(p.ta.isbackend, "wait seq1", idx, connid, seqid, p.lastseq[idx], cond)
+			log.Println(p.ta.isbackend, "wait seq1", idx, pkt.Connid, pkt.Seqid, p.lastseq[idx], cond)
 			cond.Wait()
-			log.Println(p.ta.isbackend, "wait seq2", p.lastseq[idx], seqid)
+			log.Println(p.ta.isbackend, "wait seq2", p.lastseq[idx], pkt.Seqid)
 		}
 		cond.L.Unlock()
-		return false
+		conn.Write(pkt.Buf)
+		return
 	}
 }

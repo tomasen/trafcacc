@@ -47,13 +47,8 @@ func (t *trafcacc) sendRaw(p packet) {
 	}
 
 	go func() {
-		if !t.cpool.ensure(p.Connid, p.Seqid) {
-			if p.Buf != nil {
-				conn.Write(p.Buf)
-			}
-		}
+		t.cpool.ensure(p, conn)
 	}()
-
 }
 
 // send packed data to backend
@@ -118,11 +113,7 @@ func (t *trafcacc) replyRaw(p packet) {
 		t.cpool.del(p.Connid)
 	} else {
 		go func() {
-			if !t.cpool.ensure(p.Connid, p.Seqid) {
-				if p.Buf != nil {
-					conn.Write(p.Buf)
-				}
-			}
+			t.cpool.ensure(p, conn)
 		}()
 	}
 }
