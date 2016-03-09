@@ -152,14 +152,17 @@ func (s *serv) hdlRaw(conn net.Conn) {
 
 	log.Println("hdlRaw", s)
 	connid := atomic.AddUint32(&s.ta.atomicid, 1)
-	log.Println("hdlRaw0")
 	s.ta.cpool.add(connid, conn)
-	log.Println("hdlRaw1")
+
+	defer func() {
+		s.ta.closeQueue(connid)
+		s.ta.cpool.del(connid)
+	}()
+
 	seqid := uint32(1)
-	log.Println("hdlRaw2")
 	// send 0 length data to build connection
 	s.ta.sendpkt(packet{connid, seqid, []byte{}})
-	log.Println("hdlRaw3")
+
 	buf := make([]byte, buffersize)
 	for {
 		n, err := conn.Read(buf)

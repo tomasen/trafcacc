@@ -53,7 +53,7 @@ func (t *trafcacc) sendRaw(p packet) {
 
 // send packed data to backend
 func (t *trafcacc) sendpkt(p packet) {
-	log.Println("sendpkt", t.isbackend, p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf), t.upool)
+	log.Println("sendpkt", t.isbackend, p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
 	u := t.upool.next()
 
 	func() {
@@ -137,6 +137,8 @@ func exists(queue map[uint32][]byte, seqid uint32) bool {
 }
 
 func (t *trafcacc) closeQueue(connid uint32) {
+	t.mux.Lock()
+	defer t.mux.Unlock()
 	pq := t.pq[connid]
 	if pq != nil {
 		pq.closed = true
@@ -152,7 +154,6 @@ func (t *trafcacc) ensure(p packet, conn net.Conn) {
 	t.mux.RUnlock()
 
 	if pq == nil {
-		// TODO: remove all these when connection closed
 		pq = &pktQueue{cond: sync.NewCond(&sync.Mutex{}), queue: make(map[uint32][]byte)}
 
 		t.mux.Lock()
@@ -176,6 +177,7 @@ func (t *trafcacc) ensure(p packet, conn net.Conn) {
 						if buf != nil {
 							_, err := conn.Write(buf)
 							if err != nil {
+								// remove when connection closed
 								t.closeQueue(p.Connid)
 								break
 							}

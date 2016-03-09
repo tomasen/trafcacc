@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -87,18 +88,29 @@ func servTCPEcho() {
 
 // TestEchoServer ---
 func TestEchoServer(t *testing.T) {
+	var wg sync.WaitGroup
+	for i := 0; i < 30; i++ {
+		wg.Add(1)
+		go func() {
+			testEchoConn(t)
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+}
+
+func testEchoConn(t *testing.T) {
 	conn, err := dialTimeout("tcp", "127.0.0.1:51500", time.Second*time.Duration(_BackendDialTimeout))
 	if err != nil {
 		panic(err)
 	}
 	defer conn.Close()
 
-	for i := 0; i < 140; i++ {
+	for i := 0; i < 10; i++ {
 		testEchoRound(conn, t)
 	}
 
 	time.Sleep(time.Second)
-
 }
 
 func testEchoRound(conn net.Conn, t *testing.T) {
@@ -146,5 +158,6 @@ func TestGoroutineLeak(t *testing.T) {
 	log.Println("NumGoroutine:", n)
 	if n > 5 {
 		t.Fail()
+		panic("goroutine leak")
 	}
 }
