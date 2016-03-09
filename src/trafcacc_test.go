@@ -91,8 +91,7 @@ func TestEchoServer(t *testing.T) {
 	}
 	defer conn.Close()
 
-	n := rand.Int()%(buffersize*2) + 10
-	for i := 0; i < n; i++ {
+	for i := 0; i < 40; i++ {
 		testEchoRound(conn, t)
 	}
 
@@ -103,7 +102,7 @@ func TestEchoServer(t *testing.T) {
 func testEchoRound(conn net.Conn, t *testing.T) {
 	conn.SetDeadline(time.Now().Add(time.Second * 10))
 
-	n := rand.Int()%204 + 10
+	n := rand.Int()%(buffersize*10) + 10
 	out := randomBytes(n)
 	n0, err := conn.Write(out)
 	if err != nil {

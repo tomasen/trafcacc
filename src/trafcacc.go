@@ -31,15 +31,17 @@ type trafcacc struct {
 	cpool     *poolc
 	upool     *poolu
 	epool     *poole
+	pq        *packetQueue
 }
 
 // Accelerate traffic by setup listening port and upstream
 func Accelerate(l, u string, backend bool) {
 	t := &trafcacc{}
 	t.cpool = newPoolc()
-	t.cpool.ta = t
 	t.upool = &poolu{}
 	t.epool = &poole{}
+	t.pq = &packetQueue{}
+	t.pq.ta = t
 	t.accelerate(l, u, backend)
 }
 

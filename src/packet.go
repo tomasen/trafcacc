@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"log"
 	"net"
+	"sync"
 )
 
 type packet struct {
@@ -47,7 +48,7 @@ func (t *trafcacc) sendRaw(p packet) {
 	}
 
 	go func() {
-		t.cpool.ensure(p, conn)
+		t.pq.ensure(p, conn)
 	}()
 }
 
@@ -113,7 +114,7 @@ func (t *trafcacc) replyRaw(p packet) {
 		t.cpool.del(p.Connid)
 	} else {
 		go func() {
-			t.cpool.ensure(p, conn)
+			t.pq.ensure(p, conn)
 		}()
 	}
 }
@@ -122,4 +123,66 @@ func (t *trafcacc) replyPkt(p packet) {
 	log.Println("replyPkt", t.isbackend, p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
 	conn := t.epool.next()
 	conn.Encode(p)
+}
+
+// TODO: track all connections
+const maxtrackconn = uint32(^uint16(0))
+
+type packetQueue struct {
+	lastseq [maxtrackconn]uint32
+	sedcond [maxtrackconn]*sync.Cond
+	ta      *trafcacc
+}
+
+// ensure Write in sequence
+func (p *packetQueue) ensure(pkt packet, conn net.Conn) {
+	// TODO: mutex?
+	idx := pkt.Connid & maxtrackconn
+	lastseq := p.lastseq[idx]
+
+	cond := p.sedcond[idx]
+	if cond == nil {
+		cond = sync.NewCond(&sync.Mutex{})
+		p.sedcond[idx] = cond
+		log.Println(p.ta.isbackend, "new cond", pkt.Connid)
+	}
+	defer func() {
+		cond.L.Lock()
+		p.lastseq[idx] = pkt.Seqid
+		cond.L.Unlock()
+		cond.Broadcast()
+		log.Println(p.ta.isbackend, "broadcast", pkt.Connid, pkt.Seqid, cond)
+	}()
+
+	if pkt.Buf == nil {
+		// TODO: close connection?
+		return
+	}
+
+	log.Println(p.ta.isbackend, "ensure", pkt.Connid, pkt.Seqid, lastseq)
+	switch {
+	case pkt.Seqid <= lastseq:
+		// get ride of duplicated connid+seqid
+		return
+	case pkt.Seqid == lastseq+1:
+		conn.Write(pkt.Buf)
+		return
+	default:
+		// wait if case seqid is out of order
+		cond.L.Lock()
+		for p.lastseq[idx]+1 != pkt.Seqid {
+			if pkt.Seqid <= p.lastseq[idx] {
+				// get ride of duplicated connid+seqid
+				log.Println(p.ta.isbackend, "get ride2", pkt.Connid, pkt.Seqid, p.lastseq[idx], cond)
+				cond.L.Unlock()
+				return
+			}
+			log.Println(p.ta.isbackend, "wait seq1", pkt.Connid, pkt.Seqid, p.lastseq[idx], cond)
+			cond.Wait()
+			log.Println(p.ta.isbackend, "wait seq2", pkt.Connid, pkt.Seqid, p.lastseq[idx], cond)
+		}
+		cond.L.Unlock()
+		conn.Write(pkt.Buf)
+		return
+	}
 }
