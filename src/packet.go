@@ -147,11 +147,18 @@ func (t *trafcacc) closeQueue(connid uint32) {
 // ensure Write in sequence
 func (t *trafcacc) ensure(p packet, conn net.Conn) {
 	// TODO: just write if it's udp
+	t.mux.RLock()
 	pq := t.pq[p.Connid]
+	t.mux.RUnlock()
+
 	if pq == nil {
 		// TODO: remove all these when connection closed
 		pq = &pktQueue{cond: sync.NewCond(&sync.Mutex{}), queue: make(map[uint32][]byte)}
+
+		t.mux.Lock()
 		t.pq[p.Connid] = pq
+		t.mux.Unlock()
+
 		go func() {
 			cond := pq.cond
 			for {

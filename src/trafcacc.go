@@ -8,6 +8,7 @@ import (
 	"net"
 	"runtime/debug"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -33,7 +34,8 @@ type trafcacc struct {
 	epool     *poole
 
 	// packet queue
-	pq map[uint32]*pktQueue
+	mux sync.RWMutex
+	pq  map[uint32]*pktQueue
 }
 
 // Accelerate traffic by setup listening port and upstream

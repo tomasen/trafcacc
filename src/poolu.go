@@ -24,8 +24,8 @@ func (p *poolu) append(u *upstream) {
 func (p *poolu) next() *upstream {
 	p.mux.RLock()
 	defer p.mux.RUnlock()
-	atomic.AddInt32(&p.id, 1)
-	return p.pl[p.id%p.end]
+	id := atomic.AddInt32(&p.id, 1)
+	return p.pl[id%p.end]
 }
 
 type poole struct {
