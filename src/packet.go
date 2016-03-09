@@ -34,13 +34,15 @@ func (t *trafcacc) sendRaw(p packet) {
 			}
 			t.cpool.add(p.Connid, conn)
 			go func() {
-				defer conn.Close()
+				defer func() {
+					conn.Close()
+					t.replyPkt(packet{p.Connid, p.Seqid, nil})
+				}()
 				seqid := uint32(1)
 				b := make([]byte, buffersize)
 				for {
 					n, err := conn.Read(b)
 					if err != nil {
-						t.replyPkt(packet{p.Connid, seqid, nil})
 						break
 					}
 					t.replyPkt(packet{p.Connid, seqid, b[0:n]})
@@ -76,15 +78,20 @@ func (t *trafcacc) sendpkt(p packet) {
 				u.decoder = gob.NewDecoder(conn)
 				// build reading slaves
 				go func() {
+					defer func() {
+						u.close()
+					}()
 					for {
 						p := packet{}
 						err := u.decoder.Decode(&p)
 						if err != nil {
-							break
+							return
 						}
 						t.replyRaw(p)
+						if p.Seqid != 1 && p.Buf == nil {
+							return
+						}
 					}
-					u.close()
 				}()
 			case "udp":
 				// TODO: udp
@@ -111,7 +118,7 @@ func (t *trafcacc) replyRaw(p packet) {
 		log.Println("reply to no-exist client conn")
 		return
 	}
-	if p.Buf == nil {
+	if p.Seqid != 1 && p.Buf == nil {
 		conn.Close()
 		t.cpool.del(p.Connid)
 		t.closeQueue(p.Connid)
