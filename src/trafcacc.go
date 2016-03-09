@@ -144,7 +144,6 @@ func (s *serv) hdlPacket(conn net.Conn) {
 		if p.Seqid != 1 && p.Buf == nil {
 			return
 		}
-
 	}
 }
 

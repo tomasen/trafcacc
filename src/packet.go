@@ -34,11 +34,13 @@ func (t *trafcacc) sendRaw(p packet) {
 			}
 			t.cpool.add(p.Connid, conn)
 			go func() {
+				defer conn.Close()
 				seqid := uint32(1)
 				b := make([]byte, buffersize)
 				for {
 					n, err := conn.Read(b)
 					if err != nil {
+						t.replyPkt(packet{p.Connid, seqid, nil})
 						break
 					}
 					t.replyPkt(packet{p.Connid, seqid, b[0:n]})
@@ -121,7 +123,9 @@ func (t *trafcacc) replyRaw(p packet) {
 func (t *trafcacc) replyPkt(p packet) {
 	log.Println("replyPkt", t.isbackend, p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
 	conn := t.epool.next()
-	conn.Encode(p)
+	if conn != nil {
+		conn.Encode(p)
+	}
 }
 
 type pktQueue struct {
@@ -168,12 +172,15 @@ func (t *trafcacc) ensure(p packet, conn net.Conn) {
 			}()
 			cond := pq.cond
 			for {
+				if pq.closed {
+					return
+				}
+
 				cond.L.Lock()
 				for !exists(pq.queue, pq.lastseq+1) && !pq.closed {
 					log.Println(t.isbackend, "not exist", pq.queue, pq.lastseq+1)
 					cond.Wait()
 				}
-
 				log.Println(t.isbackend, "is exist", pq.queue, pq.lastseq+1)
 
 				for i := pq.lastseq + 1; ; i++ {
@@ -198,9 +205,6 @@ func (t *trafcacc) ensure(p packet, conn net.Conn) {
 					}
 				}
 				cond.L.Unlock()
-				if pq.closed {
-					return
-				}
 			}
 		}()
 	}

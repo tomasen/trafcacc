@@ -43,6 +43,9 @@ func (p *poole) add(c *gob.Encoder) {
 func (p *poole) next() *gob.Encoder {
 	p.mux.Lock()
 	defer p.mux.Unlock()
+	if len(p.pl) == 0 {
+		return nil
+	}
 	p.id++
 	return p.pl[p.id%len(p.pl)]
 }
@@ -53,6 +56,7 @@ func (p *poole) remove(c *gob.Encoder) {
 	for id, v := range p.pl {
 		if v == c {
 			p.pl = append(p.pl[:id], p.pl[id+1:]...)
+			return
 		}
 	}
 }
