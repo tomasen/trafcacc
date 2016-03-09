@@ -154,9 +154,10 @@ func randomBytes(n int) []byte {
 }
 
 func TestGoroutineLeak(t *testing.T) {
+	time.Sleep(time.Second)
 	n := runtime.NumGoroutine()
-	log.Println("NumGoroutine:", n)
-	if n > 5 {
+	log.Println("NumGoroutine RACE:", n)
+	if n > 15 {
 		t.Fail()
 		panic("goroutine leak")
 	}

@@ -127,8 +127,11 @@ func (s *serv) hdlPacket(conn net.Conn) {
 	//u.encoder = gob.NewEncoder(conn)
 	dec := gob.NewDecoder(conn)
 	enc := gob.NewEncoder(conn)
-	id := s.ta.epool.add(enc)
-	defer s.ta.epool.remove(id)
+	s.ta.epool.add(enc)
+	defer func() {
+		s.ta.epool.remove(enc)
+		conn.Close()
+	}()
 
 	for {
 		p := packet{}
@@ -136,6 +139,9 @@ func (s *serv) hdlPacket(conn net.Conn) {
 		if err != nil {
 			log.Println("hdlPacket err:", err)
 			break
+		}
+		if p.Seqid != 1 && p.Buf == nil {
+			return
 		}
 		s.ta.sendRaw(p)
 	}
@@ -154,14 +160,15 @@ func (s *serv) hdlRaw(conn net.Conn) {
 	connid := atomic.AddUint32(&s.ta.atomicid, 1)
 	s.ta.cpool.add(connid, conn)
 
+	seqid := uint32(1)
+	// send 0 length data to build connection
+	s.ta.sendpkt(packet{connid, seqid, nil})
+
 	defer func() {
+		s.ta.sendpkt(packet{connid, seqid + 1, nil})
 		s.ta.closeQueue(connid)
 		s.ta.cpool.del(connid)
 	}()
-
-	seqid := uint32(1)
-	// send 0 length data to build connection
-	s.ta.sendpkt(packet{connid, seqid, []byte{}})
 
 	buf := make([]byte, buffersize)
 	for {

@@ -29,30 +29,30 @@ func (p *poolu) next() *upstream {
 }
 
 type poole struct {
-	mux sync.RWMutex
+	mux sync.Mutex
 	pl  []*gob.Encoder
-	id  int32
-	end int32
+	id  int
 }
 
-func (p *poole) add(c *gob.Encoder) int32 {
+func (p *poole) add(c *gob.Encoder) {
 	p.mux.Lock()
 	defer p.mux.Unlock()
 	p.pl = append(p.pl, c)
-	r := p.end
-	p.end++
-	return r
 }
 
 func (p *poole) next() *gob.Encoder {
-	p.mux.RLock()
-	defer p.mux.RUnlock()
-	id := atomic.AddInt32(&p.id, 1)
-	return p.pl[id%p.end]
-}
-
-func (p *poole) remove(id int32) {
 	p.mux.Lock()
 	defer p.mux.Unlock()
-	p.pl = append(p.pl[:id], p.pl[id+1:]...)
+	p.id++
+	return p.pl[p.id%len(p.pl)]
+}
+
+func (p *poole) remove(c *gob.Encoder) {
+	p.mux.Lock()
+	defer p.mux.Unlock()
+	for id, v := range p.pl {
+		if v == c {
+			p.pl = append(p.pl[:id], p.pl[id+1:]...)
+		}
+	}
 }

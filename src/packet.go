@@ -48,10 +48,14 @@ func (t *trafcacc) sendRaw(p packet) {
 		}
 	}
 
+	if p.Seqid != 1 && p.Buf == nil {
+		conn.Close()
+		t.cpool.del(p.Connid)
+	}
 	t.ensure(p, conn)
 }
 
-// send packed data to backend
+// send packed data to backend, only used on front-end
 func (t *trafcacc) sendpkt(p packet) {
 	log.Println("sendpkt", t.isbackend, p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
 	u := t.upool.next()
