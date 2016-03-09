@@ -51,15 +51,6 @@ func (t *trafcacc) accelerate(l, u string, backend bool) {
 	// TODO: make sure this only run once
 	t.isbackend = backend
 
-	for _, e := range parse(l) {
-		// begin to listen
-		for p := e.portBegin; p <= e.portEnd; p++ {
-			// listen to lhost:lport+p
-			s := serv{proto: e.proto, addr: net.JoinHostPort(e.host, strconv.Itoa(p)), ta: t}
-			s.listen()
-		}
-	}
-
 	for _, e := range parse(u) {
 		for p := e.portBegin; p <= e.portEnd; p++ {
 			u := upstream{proto: e.proto, addr: net.JoinHostPort(e.host, strconv.Itoa(p))}
@@ -69,6 +60,15 @@ func (t *trafcacc) accelerate(l, u string, backend bool) {
 
 	if t.upool.end == 0 {
 		log.Fatal("no upstreams")
+	}
+
+	for _, e := range parse(l) {
+		// begin to listen
+		for p := e.portBegin; p <= e.portEnd; p++ {
+			// listen to lhost:lport+p
+			s := serv{proto: e.proto, addr: net.JoinHostPort(e.host, strconv.Itoa(p)), ta: t}
+			s.listen()
+		}
 	}
 }
 

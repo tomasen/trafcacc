@@ -53,7 +53,7 @@ func (t *trafcacc) sendRaw(p packet) {
 
 // send packed data to backend
 func (t *trafcacc) sendpkt(p packet) {
-	log.Println("sendpkt", t.isbackend, p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
+	log.Println("sendpkt", t.isbackend, p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf), t.upool)
 	u := t.upool.next()
 
 	func() {

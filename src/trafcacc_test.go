@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"math/rand"
 	"net"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"testing"
 	"time"
@@ -137,4 +139,12 @@ func randomBytes(n int) []byte {
 	}
 
 	return b
+}
+
+func TestGoroutineLeak(t *testing.T) {
+	n := runtime.NumGoroutine()
+	log.Println("NumGoroutine:", n)
+	if n > 5 {
+		t.Fail()
+	}
 }

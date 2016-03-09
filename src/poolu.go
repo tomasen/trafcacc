@@ -3,22 +3,28 @@ package trafcacc
 import (
 	"encoding/gob"
 	"sync"
+	"sync/atomic"
 )
 
 // pool of upstreams
 type poolu struct {
+	mux sync.RWMutex
 	pl  []*upstream
-	id  int
-	end int
+	id  int32
+	end int32
 }
 
 func (p *poolu) append(u *upstream) {
+	p.mux.Lock()
+	defer p.mux.Unlock()
 	p.pl = append(p.pl, u)
 	p.end++
 }
 
 func (p *poolu) next() *upstream {
-	p.id++
+	p.mux.RLock()
+	defer p.mux.RUnlock()
+	atomic.AddInt32(&p.id, 1)
 	return p.pl[p.id%p.end]
 }
 
