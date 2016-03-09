@@ -48,10 +48,6 @@ func (t *trafcacc) sendRaw(p packet) {
 		}
 	}
 
-	if p.Seqid != 1 && p.Buf == nil {
-		conn.Close()
-		t.cpool.del(p.Connid)
-	}
 	t.ensure(p, conn)
 }
 
@@ -165,6 +161,11 @@ func (t *trafcacc) ensure(p packet, conn net.Conn) {
 		t.mux.Unlock()
 
 		go func() {
+			defer func() {
+				log.Println("exit cond")
+				conn.Close()
+				t.closeQueue(p.Connid)
+			}()
 			cond := pq.cond
 			for {
 				cond.L.Lock()
@@ -182,17 +183,24 @@ func (t *trafcacc) ensure(p packet, conn net.Conn) {
 							_, err := conn.Write(buf)
 							if err != nil {
 								// remove when connection closed
-								t.closeQueue(p.Connid)
+								pq.closed = true
 								break
 							}
+						} else if i > 1 {
+							pq.closed = true
+							break
 						}
 						pq.lastseq = i
 						delete(pq.queue, i)
+
 					} else {
 						break
 					}
 				}
 				cond.L.Unlock()
+				if pq.closed {
+					return
+				}
 			}
 		}()
 	}

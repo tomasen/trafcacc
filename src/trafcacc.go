@@ -140,10 +140,11 @@ func (s *serv) hdlPacket(conn net.Conn) {
 			log.Println("hdlPacket err:", err)
 			break
 		}
+		s.ta.sendRaw(p)
 		if p.Seqid != 1 && p.Buf == nil {
 			return
 		}
-		s.ta.sendRaw(p)
+
 	}
 }
 
