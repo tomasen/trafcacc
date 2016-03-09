@@ -14,6 +14,7 @@ type packet struct {
 	Buf    []byte
 }
 
+// sendRaw only happens in backend to remote upstream addr
 func (t *trafcacc) sendRaw(p packet) {
 	log.Println("sendRaw", t.isbackend, p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
 	// use cpool here , conn by connid
@@ -47,9 +48,7 @@ func (t *trafcacc) sendRaw(p packet) {
 		}
 	}
 
-	go func() {
-		t.pq.ensure(p, conn)
-	}()
+	t.ensure(p, conn)
 }
 
 // send packed data to backend
@@ -101,6 +100,7 @@ func (t *trafcacc) sendpkt(p packet) {
 	}
 }
 
+// reply Raw only happens in front-end to client
 func (t *trafcacc) replyRaw(p packet) {
 	log.Println("replyRaw", t.isbackend, p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
 	conn := t.cpool.get(p.Connid)
@@ -112,10 +112,9 @@ func (t *trafcacc) replyRaw(p packet) {
 	if p.Buf == nil {
 		conn.Close()
 		t.cpool.del(p.Connid)
+		t.closeQueue(p.Connid)
 	} else {
-		go func() {
-			t.pq.ensure(p, conn)
-		}()
+		t.ensure(p, conn)
 	}
 }
 
@@ -125,64 +124,70 @@ func (t *trafcacc) replyPkt(p packet) {
 	conn.Encode(p)
 }
 
-// TODO: track all connections
-const maxtrackconn = uint32(^uint16(0))
+type pktQueue struct {
+	lastseq uint32
+	cond    *sync.Cond
+	queue   map[uint32][]byte
+	closed  bool
+}
 
-type packetQueue struct {
-	lastseq [maxtrackconn]uint32
-	sedcond [maxtrackconn]*sync.Cond
-	ta      *trafcacc
+func exists(queue map[uint32][]byte, seqid uint32) bool {
+	_, ok := queue[seqid]
+	return ok
+}
+
+func (t *trafcacc) closeQueue(connid uint32) {
+	pq := t.pq[connid]
+	if pq != nil {
+		pq.closed = true
+		delete(t.pq, connid)
+	}
 }
 
 // ensure Write in sequence
-func (p *packetQueue) ensure(pkt packet, conn net.Conn) {
-	// TODO: mutex?
-	idx := pkt.Connid & maxtrackconn
-	lastseq := p.lastseq[idx]
+func (t *trafcacc) ensure(p packet, conn net.Conn) {
+	// TODO: just write if it's udp
+	pq := t.pq[p.Connid]
+	if pq == nil {
+		// TODO: remove all these when connection closed
+		pq = &pktQueue{cond: sync.NewCond(&sync.Mutex{}), queue: make(map[uint32][]byte)}
+		t.pq[p.Connid] = pq
+		go func() {
+			cond := pq.cond
+			for {
+				cond.L.Lock()
+				for !exists(pq.queue, pq.lastseq+1) && !pq.closed {
+					log.Println(t.isbackend, "not exist", pq.queue, pq.lastseq+1)
+					cond.Wait()
+				}
 
-	cond := p.sedcond[idx]
-	if cond == nil {
-		cond = sync.NewCond(&sync.Mutex{})
-		p.sedcond[idx] = cond
-		log.Println(p.ta.isbackend, "new cond", pkt.Connid)
-	}
-	defer func() {
-		cond.L.Lock()
-		p.lastseq[idx] = pkt.Seqid
-		cond.L.Unlock()
-		cond.Broadcast()
-		log.Println(p.ta.isbackend, "broadcast", pkt.Connid, pkt.Seqid, cond)
-	}()
+				log.Println(t.isbackend, "is exist", pq.queue, pq.lastseq+1)
 
-	if pkt.Buf == nil {
-		// TODO: close connection?
-		return
-	}
-
-	log.Println(p.ta.isbackend, "ensure", pkt.Connid, pkt.Seqid, lastseq)
-	switch {
-	case pkt.Seqid <= lastseq:
-		// get ride of duplicated connid+seqid
-		return
-	case pkt.Seqid == lastseq+1:
-		conn.Write(pkt.Buf)
-		return
-	default:
-		// wait if case seqid is out of order
-		cond.L.Lock()
-		for p.lastseq[idx]+1 != pkt.Seqid {
-			if pkt.Seqid <= p.lastseq[idx] {
-				// get ride of duplicated connid+seqid
-				log.Println(p.ta.isbackend, "get ride2", pkt.Connid, pkt.Seqid, p.lastseq[idx], cond)
+				for i := pq.lastseq + 1; ; i++ {
+					buf, ok := pq.queue[i]
+					if ok {
+						if buf != nil {
+							_, err := conn.Write(buf)
+							if err != nil {
+								t.closeQueue(p.Connid)
+								break
+							}
+						}
+						pq.lastseq = i
+						delete(pq.queue, i)
+					} else {
+						break
+					}
+				}
 				cond.L.Unlock()
-				return
 			}
-			log.Println(p.ta.isbackend, "wait seq1", pkt.Connid, pkt.Seqid, p.lastseq[idx], cond)
-			cond.Wait()
-			log.Println(p.ta.isbackend, "wait seq2", pkt.Connid, pkt.Seqid, p.lastseq[idx], cond)
-		}
-		cond.L.Unlock()
-		conn.Write(pkt.Buf)
-		return
+		}()
 	}
+
+	cond := pq.cond
+
+	cond.L.Lock()
+	pq.queue[p.Seqid] = p.Buf
+	cond.L.Unlock()
+	cond.Signal()
 }

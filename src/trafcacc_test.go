@@ -91,7 +91,7 @@ func TestEchoServer(t *testing.T) {
 	}
 	defer conn.Close()
 
-	for i := 0; i < 40; i++ {
+	for i := 0; i < 140; i++ {
 		testEchoRound(conn, t)
 	}
 
