@@ -181,7 +181,7 @@ func randomBytes(n int) []byte {
 }
 
 func TestGoroutineLeak(t *testing.T) {
-	time.Sleep(time.Second)
+	time.Sleep(time.Second*2)
 	n := runtime.NumGoroutine()
 	fmt.Println("NumGoroutine RACE:", n)
 	if n > 15 {
