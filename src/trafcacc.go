@@ -24,6 +24,7 @@ const (
 
 type trafcacc struct {
 	role     tag
+	once     sync.Once
 	atomicid uint32
 	cpool    *poolc
 	upool    *poolu
@@ -41,12 +42,14 @@ func Accelerate(l, u string, role tag) {
 	t.upool = &poolu{}
 	t.epool = &poole{}
 	t.pq = make(map[uint32]*pktQueue)
-	t.accelerate(l, u, role)
+	// make sure this only run once pre-instance
+	t.once.Do(func() {
+		t.accelerate(l, u, role)
+	})
 }
 
 // Accelerate traffic start by flag strings
 func (t *trafcacc) accelerate(l, u string, role tag) {
-	// TODO: make sure this only run once
 	t.role = role
 
 	for _, e := range parse(u) {

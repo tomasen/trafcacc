@@ -2,10 +2,8 @@ package trafcacc
 
 import (
 	"encoding/gob"
-	"fmt"
 	"io"
 	"net"
-	"runtime/debug"
 	"sync/atomic"
 	"time"
 
@@ -60,10 +58,10 @@ func (s *serv) acceptTCP() {
 			log.Fatal(err)
 		}
 		tempDelay = 0
-		log.Debugln("handler conn", s.ta.roleString())
+
 		switch s.ta.role {
 		case BACKEND:
-			go s.hdlPacket(conn)
+			go s.hdlPkt(conn)
 		case FRONTEND:
 			go s.hdlRaw(conn)
 		}
@@ -71,13 +69,11 @@ func (s *serv) acceptTCP() {
 }
 
 // handle packed data from client side as backend
-func (s *serv) hdlPacket(conn net.Conn) {
+func (s *serv) hdlPkt(conn net.Conn) {
 	rname := "hdlPacket"
 	routineAdd(rname)
 	defer routineDel(rname)
 
-	log.Debugln("hdlPacket")
-	//u.encoder = gob.NewEncoder(conn)
 	dec := gob.NewDecoder(conn)
 	enc := gob.NewEncoder(conn)
 	s.ta.epool.add(enc)
@@ -86,25 +82,15 @@ func (s *serv) hdlPacket(conn net.Conn) {
 		conn.Close()
 	}()
 
-	var connid *uint32
 	for {
 		p := packet{}
 		err := dec.Decode(&p)
 		if err != nil {
 			log.Debugln("hdlPacket err:", err)
-			if connid != nil {
-				s.ta.closeQueue(*connid)
-			}
+			// TODO: close or do some thing?
 			break
 		}
-		connid = &p.Connid
 		s.ta.sendRaw(p)
-		if p.Seqid != 1 && p.Buf == nil {
-			if connid != nil {
-				s.ta.closeQueue(*connid)
-			}
-			return
-		}
 	}
 }
 
@@ -114,37 +100,31 @@ func (s *serv) hdlRaw(conn net.Conn) {
 	routineAdd(rname)
 	defer routineDel(rname)
 
-	defer func() {
-		if r := recover(); r != nil {
-			log.Debugln("Recovered in", r, ":", string(debug.Stack()))
-		}
-	}()
 	defer conn.Close()
 
-	log.Debugln("hdlRaw", s)
 	connid := atomic.AddUint32(&s.ta.atomicid, 1)
 	s.ta.cpool.add(connid, conn)
 
 	seqid := uint32(1)
-	// send 0 length data to build connection
-	s.ta.sendpkt(packet{connid, seqid, nil})
+	// send connect command to backend to estabilish connection
+	s.ta.sendPkt(packet{Connid: connid, Seqid: seqid, Cmd: connect})
 
 	defer func() {
-		s.ta.sendpkt(packet{connid, seqid + 1, nil})
-		s.ta.closeQueue(connid)
+		s.ta.sendPkt(packet{Connid: connid, Seqid: seqid + 1, Cmd: close})
 		s.ta.cpool.del(connid)
 	}()
 
 	buf := make([]byte, buffersize)
 	for {
+		// TODO: close connection by packet command
 		n, err := conn.Read(buf)
 		if err != nil {
 			if err != io.EOF {
-				fmt.Println("read error:", err)
+				log.Debugln(s.ta.roleString(), "read from client error:", err)
 			}
 			break
 		}
 		seqid++
-		s.ta.sendpkt(packet{connid, seqid, buf[:n]})
+		s.ta.sendPkt(packet{Connid: connid, Seqid: seqid, Buf: buf[:n]})
 	}
 }

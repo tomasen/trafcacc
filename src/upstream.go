@@ -6,6 +6,7 @@ import (
 	"sync"
 )
 
+// upstream is connection manager for frontend to backend
 type upstream struct {
 	proto   string
 	addr    string

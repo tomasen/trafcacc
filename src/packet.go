@@ -6,20 +6,34 @@ import (
 	"errors"
 	"net"
 	"sync"
-	"sync/atomic"
 
 	log "github.com/Sirupsen/logrus"
+)
+
+type cmd uint8
+
+const (
+	data cmd = iota
+	close
+	connect
 )
 
 type packet struct {
 	Connid uint32
 	Seqid  uint32
 	Buf    []byte
+	Cmd    cmd
 }
 
 // sendRaw only happens in backend to remote upstream addr
 func (t *trafcacc) sendRaw(p packet) {
-	log.Debugln("sendRaw", t.roleString(), p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
+	log.WithFields(log.Fields{
+		"connid": p.Connid,
+		"seqid":  p.Seqid,
+		"len":    len(p.Buf),
+		"zdata":  shrinkString(hex.EncodeToString(p.Buf)),
+	}).Debugln(t.roleString(), "sendRaw() to remote addr")
+
 	// use cpool here , conn by connid
 	conn := t.cpool.get(p.Connid)
 	u := t.upool.next()
@@ -31,29 +45,38 @@ func (t *trafcacc) sendRaw(p packet) {
 		case "tcp":
 			conn, err = net.Dial("tcp", u.addr)
 			if err != nil {
-				// reply error
-				t.replyPkt(packet{Connid: p.Connid})
+				log.WithFields(log.Fields{
+					"connid": p.Connid,
+					"error":  err,
+				}).Debugln(t.roleString(), "Dial error")
+				// reply error and close connection
+				t.replyPkt(packet{Connid: p.Connid, Cmd: close})
 				return
 			}
 			t.cpool.add(p.Connid, conn)
 			go func() {
+				log.Debugln(t.roleString(), "connected to remote begin to read")
 				rname := "sendRawRead"
 				routineAdd(rname)
 				defer routineDel(rname)
 
+				seqid := uint32(1)
 				defer func() {
+					log.WithFields(log.Fields{
+						"connid": p.Connid,
+						"seqid":  seqid,
+					}).Debugln(t.roleString(), "remote connection closed")
 					conn.Close()
 					t.cpool.del(p.Connid)
-					t.replyPkt(packet{p.Connid, p.Seqid, nil})
+					t.replyPkt(packet{Connid: p.Connid, Seqid: seqid, Cmd: close})
 				}()
-				seqid := uint32(1)
 				b := make([]byte, buffersize)
 				for {
 					n, err := conn.Read(b)
 					if err != nil {
 						break
 					}
-					err = t.replyPkt(packet{p.Connid, seqid, b[0:n]})
+					err = t.replyPkt(packet{Connid: p.Connid, Seqid: seqid, Buf: b[0:n]})
 					if err != nil {
 						break
 					}
@@ -63,12 +86,19 @@ func (t *trafcacc) sendRaw(p packet) {
 		}
 	}
 
-	t.ensure(p, conn)
+	t.pushToQueue(p, conn)
 }
 
 // send packed data to backend, only used on front-end
-func (t *trafcacc) sendpkt(p packet) {
-	log.Debugln("sendpkt", t.roleString(), p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
+func (t *trafcacc) sendPkt(p packet) {
+	log.WithFields(log.Fields{
+		"connid": p.Connid,
+		"seqid":  p.Seqid,
+		"len":    len(p.Buf),
+		"cmd":    p.Cmd,
+		"zdata":  shrinkString(hex.EncodeToString(p.Buf)),
+	}).Debugln(t.roleString(), "sendPkt()")
+
 	u := t.upool.next()
 
 	func() {
@@ -80,22 +110,24 @@ func (t *trafcacc) sendpkt(p packet) {
 			case "tcp":
 				conn, err := net.Dial("tcp", u.addr)
 				if err != nil {
-					// reply error
-					t.replyRaw(packet{Connid: p.Connid})
+					// reply error and close connection to client
+					log.WithFields(log.Fields{
+						"connid": p.Connid,
+					}).Debugln(t.roleString(), "dial in sendpkt() failed:", err)
+					t.replyRaw(packet{Connid: p.Connid, Cmd: close})
 					return
 				}
 				u.conn = conn
 				u.encoder = gob.NewEncoder(conn)
 				u.decoder = gob.NewDecoder(conn)
-				// build reading slaves
+				// build packet reading slaves
 				go func() {
 					rname := "sendpktDecode"
 					routineAdd(rname)
 					defer routineDel(rname)
 
-					defer func() {
-						u.close()
-					}()
+					defer u.close()
+
 					u.mux.RLock()
 					dec := u.decoder
 					u.mux.RUnlock()
@@ -106,9 +138,6 @@ func (t *trafcacc) sendpkt(p packet) {
 							return
 						}
 						t.replyRaw(p)
-						if p.Seqid != 1 && p.Buf == nil {
-							return
-						}
 					}
 				}()
 			case "udp":
@@ -120,34 +149,44 @@ func (t *trafcacc) sendpkt(p packet) {
 	err := u.encoder.Encode(&p)
 	if err != nil {
 		u.close()
-		log.Debugln("sendpkt err:", err)
-		// reply error
-		t.replyRaw(packet{Connid: p.Connid})
+		log.WithFields(log.Fields{
+			"connid": p.Connid,
+			"error":  err,
+		}).Debugln(t.roleString(), "encode in sendpkt() failed")
+		// reply error and close connection to client
+		t.replyRaw(packet{Connid: p.Connid, Cmd: close})
 		return
 	}
 }
 
 // reply Raw only happens in front-end to client
 func (t *trafcacc) replyRaw(p packet) {
-	log.Debugln("replyRaw", t.roleString(), p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
+	log.WithFields(log.Fields{
+		"connid": p.Connid,
+		"seqid":  p.Seqid,
+		"cmd":    p.Cmd,
+		"len":    len(p.Buf),
+		"zdata":  shrinkString(hex.EncodeToString(p.Buf)),
+	}).Debugln(t.roleString(), "replyRaw()")
 	conn := t.cpool.get(p.Connid)
-	defer t.closeQueue(p.Connid)
+
 	if conn == nil {
 		log.Debugln("reply to no-exist client conn", p)
 		t.cpool.del(p.Connid)
 		return
 	}
-	if p.Seqid != 1 && p.Buf == nil {
-		log.Debugln("replyRaw close:", p)
-		conn.Close()
-		t.cpool.del(p.Connid)
-	} else {
-		t.ensure(p, conn)
-	}
+	t.pushToQueue(p, conn)
 }
 
+// reply Packet only happens in backend to frontend
 func (t *trafcacc) replyPkt(p packet) error {
-	log.Debugln("replyPkt", t.roleString(), p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
+	log.WithFields(log.Fields{
+		"connid": p.Connid,
+		"seqid":  p.Seqid,
+		"len":    len(p.Buf),
+		"zdata":  shrinkString(hex.EncodeToString(p.Buf)),
+	}).Debugln(t.roleString(), "replyPkt() to frontend")
+
 	conn := t.epool.next()
 	if conn != nil {
 		return conn.Encode(p)
@@ -158,100 +197,117 @@ func (t *trafcacc) replyPkt(p packet) error {
 type pktQueue struct {
 	lastseq uint32
 	cond    *sync.Cond
-	queue   map[uint32][]byte
-	closed  int32
+	queue   map[uint32]*packet
 }
 
-func exists(queue map[uint32][]byte, seqid uint32) bool {
+func exists(queue map[uint32]*packet, seqid uint32) bool {
 	_, ok := queue[seqid]
 	return ok
 }
 
-func (t *trafcacc) closeQueue(connid uint32) {
+// remove by connid from packet queue pool
+func (t *trafcacc) removeQueue(connid uint32) {
 	t.mux.Lock()
 	defer t.mux.Unlock()
 	pq := t.pq[connid]
 	if pq != nil {
-		atomic.StoreInt32(&pq.closed, 1)
-		pq.cond.Signal()
 		delete(t.pq, connid)
 	}
 }
 
-// ensure Write in sequence
-func (t *trafcacc) ensure(p packet, conn net.Conn) {
-	// TODO: just write if it's udp
-	t.mux.RLock()
+// ensure Write to client and remote in sequence
+func (t *trafcacc) pushToQueue(p packet, conn net.Conn) {
+	// TODO: just write if it's udp?
+	t.mux.Lock()
 	pq := t.pq[p.Connid]
-	t.mux.RUnlock()
 
 	if pq == nil {
-		pq = &pktQueue{cond: sync.NewCond(&sync.Mutex{}), queue: make(map[uint32][]byte)}
-
-		t.mux.Lock()
+		pq = &pktQueue{
+			cond:  sync.NewCond(&sync.Mutex{}),
+			queue: make(map[uint32]*packet),
+		}
 		t.pq[p.Connid] = pq
-		t.mux.Unlock()
+		log.WithFields(log.Fields{
+			"connid": p.Connid,
+		}).Debugln(t.roleString(), "add new packet queue")
 
-		go func() {
-			rname := "ensureCond"
-			routineAdd(rname)
-			defer routineDel(rname)
-
-			defer func() {
-				log.Debugln("exit cond")
-				conn.Close()
-				t.closeQueue(p.Connid)
-			}()
-			cond := pq.cond
-			for {
-				if atomic.LoadInt32(&pq.closed) != 0 {
-					return
-				}
-
-				cond.L.Lock()
-				for !exists(pq.queue, pq.lastseq+1) && atomic.LoadInt32(&pq.closed) == 0 {
-					log.Debugln(t.roleString(), "not exist", pq.queue, pq.lastseq+1)
-					cond.Wait()
-				}
-				log.Debugln(t.roleString(), "is exist", pq.queue, pq.lastseq+1)
-				lastseq := pq.lastseq + 1
-				cond.L.Unlock()
-
-				for i := lastseq; ; i++ {
-					cond.L.Lock()
-					buf, ok := pq.queue[i]
-					cond.L.Unlock()
-					if ok {
-						if buf != nil {
-							_, err := conn.Write(buf)
-							if err != nil {
-								// remove when connection closed
-								log.Debugln("cond write err", err)
-								atomic.StoreInt32(&pq.closed, 1)
-								break
-							}
-						} else if i > 1 {
-							log.Debugln("cond write closed")
-							atomic.StoreInt32(&pq.closed, 1)
-							break
-						}
-						cond.L.Lock()
-						pq.lastseq = i
-						delete(pq.queue, i)
-						cond.L.Unlock()
-					} else {
-						break
-					}
-				}
-
-			}
-		}()
+		go t.orderedWrite(pq, p.Connid, conn)
 	}
+	t.mux.Unlock()
 
 	cond := pq.cond
 
 	cond.L.Lock()
-	pq.queue[p.Seqid] = p.Buf
+	pq.queue[p.Seqid] = &p
 	cond.L.Unlock()
 	cond.Signal()
+}
+
+// ensure write order for this connid
+func (t *trafcacc) orderedWrite(pq *pktQueue, connid uint32, conn net.Conn) {
+	rname := "orderedWrite"
+	routineAdd(rname)
+	defer routineDel(rname)
+
+	defer func() {
+		log.Debugln(t.roleString(), "packet queue of", connid, " exit")
+		conn.Close()
+		t.removeQueue(connid)
+	}()
+
+	cond := pq.cond
+	for {
+		cond.L.Lock()
+		for !exists(pq.queue, pq.lastseq+1) {
+			log.WithFields(log.Fields{
+				"connid": connid,
+				"seqid":  pq.lastseq + 1,
+				"queue":  keysOfmap(pq.queue),
+			}).Debugln(t.roleString(), "seq is out of order")
+			cond.Wait()
+		}
+		lastseq := pq.lastseq + 1
+
+		log.WithFields(log.Fields{
+			"connid":  connid,
+			"lastseq": lastseq,
+			"queue":   keysOfmap(pq.queue),
+		}).Debugln(t.roleString(), "new seq packet is ready")
+
+		cond.L.Unlock()
+
+		for i := lastseq; ; i++ {
+			cond.L.Lock()
+			pkt, ok := pq.queue[i]
+			cond.L.Unlock()
+			if !ok {
+				break
+			} else {
+				if pkt.Buf != nil {
+					log.WithFields(log.Fields{
+						"connid": pkt.Connid,
+						"seqid":  pkt.Seqid,
+						"len":    len(pkt.Buf),
+						"zdata":  shrinkString(hex.EncodeToString(pkt.Buf)),
+					}).Debugln(t.roleString(), "orderedWrite()")
+
+					_, err := conn.Write(pkt.Buf)
+					if err != nil {
+						// remove when connection closed
+						log.Debugln("cond write err", err)
+						return
+					}
+				}
+				if pkt.Cmd == close {
+					log.Debugln("cond write closed")
+					return
+				}
+				cond.L.Lock()
+				pq.lastseq = i
+				delete(pq.queue, i)
+				cond.L.Unlock()
+			}
+		}
+
+	}
 }

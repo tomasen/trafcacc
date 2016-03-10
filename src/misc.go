@@ -17,3 +17,18 @@ func dialTimeout(network, address string, timeout time.Duration) (conn net.Conn,
 	}
 	return
 }
+
+func keysOfmap(m map[uint32]*packet) (r []uint32) {
+	for k := range m {
+		r = append(r, k)
+	}
+	return
+}
+
+func shrinkString(s string) string {
+	l := len(s)
+	if l > 30 {
+		return s[:15] + "..." + s[l-15:l]
+	}
+	return s
+}
