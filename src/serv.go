@@ -111,6 +111,9 @@ func (s *serv) hdlRaw(conn net.Conn) {
 
 	defer func() {
 		s.ta.sendPkt(packet{Connid: connid, Seqid: seqid + 1, Cmd: close})
+		log.WithFields(log.Fields{
+			"connid": connid,
+		}).Debugln(s.ta.roleString(), "hdlRaw() exit")
 		s.ta.cpool.del(connid)
 	}()
 
@@ -123,8 +126,9 @@ func (s *serv) hdlRaw(conn net.Conn) {
 				log.Debugln(s.ta.roleString(), "read from client error:", err)
 			}
 			break
+		} else {
+			seqid++
+			s.ta.sendPkt(packet{Connid: connid, Seqid: seqid, Buf: buf[:n]})
 		}
-		seqid++
-		s.ta.sendPkt(packet{Connid: connid, Seqid: seqid, Buf: buf[:n]})
 	}
 }

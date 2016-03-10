@@ -135,6 +135,10 @@ func (t *trafcacc) sendPkt(p packet) {
 						p := packet{}
 						err := dec.Decode(&p)
 						if err != nil {
+							log.WithFields(log.Fields{
+								"connid": p.Connid,
+								"error":  err,
+							}).Debugln(t.roleString(), "read packet from backend failed")
 							return
 						}
 						t.replyRaw(p)
@@ -171,9 +175,14 @@ func (t *trafcacc) replyRaw(p packet) {
 	conn := t.cpool.get(p.Connid)
 
 	if conn == nil {
-		log.Debugln("reply to no-exist client conn", p)
+		log.WithFields(log.Fields{
+			"connid": p.Connid,
+			"seqid":  p.Seqid,
+			"len":    len(p.Buf),
+			"cmd":    p.Cmd,
+			"zdata":  shrinkString(hex.EncodeToString(p.Buf)),
+		}).Debugln(t.roleString(), "reply to no-exist client conn")
 		t.cpool.del(p.Connid)
-		return
 	}
 	t.pushToQueue(p, conn)
 }
@@ -239,6 +248,12 @@ func (t *trafcacc) pushToQueue(p packet, conn net.Conn) {
 
 	cond.L.Lock()
 	pq.queue[p.Seqid] = &p
+	log.WithFields(log.Fields{
+		"connid": p.Connid,
+		"seqid":  p.Seqid,
+		"Cmd":    p.Cmd,
+		"queue":  keysOfmap(pq.queue),
+	}).Debugln(t.roleString(), "add new seq to queue")
 	cond.L.Unlock()
 	cond.Signal()
 }
@@ -251,7 +266,9 @@ func (t *trafcacc) orderedWrite(pq *pktQueue, connid uint32, conn net.Conn) {
 
 	defer func() {
 		log.Debugln(t.roleString(), "packet queue of", connid, " exit")
-		conn.Close()
+		if conn != nil {
+			conn.Close()
+		}
 		t.removeQueue(connid)
 	}()
 
@@ -263,7 +280,7 @@ func (t *trafcacc) orderedWrite(pq *pktQueue, connid uint32, conn net.Conn) {
 				"connid": connid,
 				"seqid":  pq.lastseq + 1,
 				"queue":  keysOfmap(pq.queue),
-			}).Debugln(t.roleString(), "seq is out of order")
+			}).Debugln(t.roleString(), "no new seq in the order")
 			cond.Wait()
 		}
 		lastseq := pq.lastseq + 1
@@ -290,16 +307,19 @@ func (t *trafcacc) orderedWrite(pq *pktQueue, connid uint32, conn net.Conn) {
 						"len":    len(pkt.Buf),
 						"zdata":  shrinkString(hex.EncodeToString(pkt.Buf)),
 					}).Debugln(t.roleString(), "orderedWrite()")
-
+					if conn == nil {
+						log.Debugln(t.roleString(), "orderedWrite() connection already lost")
+						return
+					}
 					_, err := conn.Write(pkt.Buf)
 					if err != nil {
 						// remove when connection closed
-						log.Debugln("cond write err", err)
+						log.Debugln(t.roleString(), "orderedWrite() err", err)
 						return
 					}
 				}
 				if pkt.Cmd == close {
-					log.Debugln("cond write closed")
+					log.Debugln(t.roleString(), "orderedWrite() received close command")
 					return
 				}
 				cond.L.Lock()
