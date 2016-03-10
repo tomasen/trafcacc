@@ -43,8 +43,11 @@ func main() {
 	backend := flag.Bool("backend", false, "work as backend")
 
 	flag.Parse()
-
-	trafcacc.Accelerate(*listen, *upstream, *backend)
+	if *backend {
+		trafcacc.Accelerate(*listen, *upstream, trafcacc.BACKEND)
+	} else {
+		trafcacc.Accelerate(*listen, *upstream, trafcacc.FRONTEND)
+	}
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)

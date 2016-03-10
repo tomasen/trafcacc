@@ -12,6 +12,13 @@ import (
 	log "github.com/Sirupsen/logrus"
 )
 
+type serv struct {
+	proto string
+	addr  string
+	ln    net.Listener
+	ta    *trafcacc
+}
+
 func (s *serv) listen() {
 	switch s.proto {
 	case "tcp":

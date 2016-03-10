@@ -13,20 +13,14 @@ const (
 	_BackendDialTimeout = 5
 )
 
+// tag is type of role: BACKEND or FRONTEND
 type tag bool
 
+// BACKEND FRONTEND role tag
 const (
-	// BACKEND FRONTEND role tag
 	BACKEND  tag = true
 	FRONTEND tag = false
 )
-
-type serv struct {
-	proto string
-	addr  string
-	ln    net.Listener
-	ta    *trafcacc
-}
 
 type trafcacc struct {
 	role     tag
