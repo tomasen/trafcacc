@@ -3,9 +3,11 @@ package trafcacc
 import (
 	"encoding/gob"
 	"encoding/hex"
+	"errors"
 	"log"
 	"net"
 	"sync"
+	"sync/atomic"
 )
 
 type packet struct {
@@ -34,8 +36,13 @@ func (t *trafcacc) sendRaw(p packet) {
 			}
 			t.cpool.add(p.Connid, conn)
 			go func() {
+				rname := "sendRawRead"
+				routineAdd(rname)
+				defer routineDel(rname)
+
 				defer func() {
 					conn.Close()
+					t.cpool.del(p.Connid)
 					t.replyPkt(packet{p.Connid, p.Seqid, nil})
 				}()
 				seqid := uint32(1)
@@ -45,7 +52,10 @@ func (t *trafcacc) sendRaw(p packet) {
 					if err != nil {
 						break
 					}
-					t.replyPkt(packet{p.Connid, seqid, b[0:n]})
+					err = t.replyPkt(packet{p.Connid, seqid, b[0:n]})
+					if err != nil {
+						break
+					}
 					seqid++
 				}
 			}()
@@ -78,12 +88,19 @@ func (t *trafcacc) sendpkt(p packet) {
 				u.decoder = gob.NewDecoder(conn)
 				// build reading slaves
 				go func() {
+					rname := "sendpktDecode"
+					routineAdd(rname)
+					defer routineDel(rname)
+
 					defer func() {
 						u.close()
 					}()
+					u.mux.RLock()
+					dec := u.decoder
+					u.mux.RUnlock()
 					for {
 						p := packet{}
-						err := u.decoder.Decode(&p)
+						err := dec.Decode(&p)
 						if err != nil {
 							return
 						}
@@ -113,33 +130,35 @@ func (t *trafcacc) sendpkt(p packet) {
 func (t *trafcacc) replyRaw(p packet) {
 	log.Println("replyRaw", t.isbackend, p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
 	conn := t.cpool.get(p.Connid)
-
+	defer t.closeQueue(p.Connid)
 	if conn == nil {
-		log.Println("reply to no-exist client conn")
+		log.Println("reply to no-exist client conn", p)
+		t.cpool.del(p.Connid)
 		return
 	}
 	if p.Seqid != 1 && p.Buf == nil {
+		log.Println("replyRaw close:", p)
 		conn.Close()
 		t.cpool.del(p.Connid)
-		t.closeQueue(p.Connid)
 	} else {
 		t.ensure(p, conn)
 	}
 }
 
-func (t *trafcacc) replyPkt(p packet) {
+func (t *trafcacc) replyPkt(p packet) error {
 	log.Println("replyPkt", t.isbackend, p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
 	conn := t.epool.next()
 	if conn != nil {
-		conn.Encode(p)
+		return conn.Encode(p)
 	}
+	return errors.New("connection not exist anymore")
 }
 
 type pktQueue struct {
 	lastseq uint32
 	cond    *sync.Cond
 	queue   map[uint32][]byte
-	closed  bool
+	closed  int32
 }
 
 func exists(queue map[uint32][]byte, seqid uint32) bool {
@@ -152,7 +171,8 @@ func (t *trafcacc) closeQueue(connid uint32) {
 	defer t.mux.Unlock()
 	pq := t.pq[connid]
 	if pq != nil {
-		pq.closed = true
+		atomic.StoreInt32(&pq.closed, 1)
+		pq.cond.Signal()
 		delete(t.pq, connid)
 	}
 }
@@ -172,6 +192,10 @@ func (t *trafcacc) ensure(p packet, conn net.Conn) {
 		t.mux.Unlock()
 
 		go func() {
+			rname := "ensureCond"
+			routineAdd(rname)
+			defer routineDel(rname)
+
 			defer func() {
 				log.Println("exit cond")
 				conn.Close()
@@ -179,39 +203,46 @@ func (t *trafcacc) ensure(p packet, conn net.Conn) {
 			}()
 			cond := pq.cond
 			for {
-				if pq.closed {
+				if atomic.LoadInt32(&pq.closed) != 0 {
 					return
 				}
 
 				cond.L.Lock()
-				for !exists(pq.queue, pq.lastseq+1) && !pq.closed {
+				for !exists(pq.queue, pq.lastseq+1) && atomic.LoadInt32(&pq.closed) == 0 {
 					log.Println(t.isbackend, "not exist", pq.queue, pq.lastseq+1)
 					cond.Wait()
 				}
 				log.Println(t.isbackend, "is exist", pq.queue, pq.lastseq+1)
+				lastseq := pq.lastseq + 1
+				cond.L.Unlock()
 
-				for i := pq.lastseq + 1; ; i++ {
+				for i := lastseq; ; i++ {
+					cond.L.Lock()
 					buf, ok := pq.queue[i]
+					cond.L.Unlock()
 					if ok {
 						if buf != nil {
 							_, err := conn.Write(buf)
 							if err != nil {
 								// remove when connection closed
-								pq.closed = true
+								log.Println("cond write err", err)
+								atomic.StoreInt32(&pq.closed, 1)
 								break
 							}
 						} else if i > 1 {
-							pq.closed = true
+							log.Println("cond write closed")
+							atomic.StoreInt32(&pq.closed, 1)
 							break
 						}
+						cond.L.Lock()
 						pq.lastseq = i
 						delete(pq.queue, i)
-
+						cond.L.Unlock()
 					} else {
 						break
 					}
 				}
-				cond.L.Unlock()
+
 			}
 		}()
 	}

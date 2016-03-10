@@ -92,6 +92,10 @@ func (s *serv) listen() {
 }
 
 func (s *serv) acceptTCP() {
+	rname := "acceptTCP"
+	routineAdd(rname)
+	defer routineDel(rname)
+
 	defer s.ln.Close()
 	var tempDelay time.Duration
 	for {
@@ -123,6 +127,10 @@ func (s *serv) acceptTCP() {
 
 // handle packed data from client side as backend
 func (s *serv) hdlPacket(conn net.Conn) {
+	rname := "hdlPacket"
+	routineAdd(rname)
+	defer routineDel(rname)
+
 	log.Println("hdlPacket")
 	//u.encoder = gob.NewEncoder(conn)
 	dec := gob.NewDecoder(conn)
@@ -133,15 +141,23 @@ func (s *serv) hdlPacket(conn net.Conn) {
 		conn.Close()
 	}()
 
+	var connid *uint32
 	for {
 		p := packet{}
 		err := dec.Decode(&p)
 		if err != nil {
 			log.Println("hdlPacket err:", err)
+			if connid != nil {
+				s.ta.closeQueue(*connid)
+			}
 			break
 		}
+		connid = &p.Connid
 		s.ta.sendRaw(p)
 		if p.Seqid != 1 && p.Buf == nil {
+			if connid != nil {
+				s.ta.closeQueue(*connid)
+			}
 			return
 		}
 	}
@@ -149,6 +165,10 @@ func (s *serv) hdlPacket(conn net.Conn) {
 
 // handle raw data from client side as front-end
 func (s *serv) hdlRaw(conn net.Conn) {
+	rname := "hdlRaw"
+	routineAdd(rname)
+	defer routineDel(rname)
+
 	defer func() {
 		if r := recover(); r != nil {
 			log.Println("Recovered in", r, ":", string(debug.Stack()))

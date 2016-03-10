@@ -12,7 +12,7 @@ type upstream struct {
 	conn    net.Conn
 	encoder *gob.Encoder
 	decoder *gob.Decoder
-	mux     sync.Mutex
+	mux     sync.RWMutex
 }
 
 func (u *upstream) close() {

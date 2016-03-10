@@ -17,12 +17,10 @@ func newPoolc() *poolc {
 }
 
 func (p *poolc) add(id uint32, conn net.Conn) {
-	log.Println("poolc add")
 	p.mux.Lock()
 	defer p.mux.Unlock()
-	log.Println("poolc add2")
+	log.Println("poolc add")
 	p.pool[id] = conn
-	log.Println("poolc add3")
 }
 
 func (p *poolc) get(id uint32) net.Conn {

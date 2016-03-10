@@ -20,15 +20,17 @@ import (
 
 var (
 	_echoServerAddr = "127.0.0.1:62863"
+	parrelelConn    = 1
+	echoRound       = 4
 )
 
 func TestMain(m *testing.M) {
 	// start echo server
 	go servTCPEcho()
 
-	go Accelerate("tcp://:51500", "tcp://127.0.0.1:51501-51504", false)
+	Accelerate("tcp://:51500", "tcp://127.0.0.1:51501-51504", false)
 
-	go Accelerate("tcp://:51501-51504", "tcp://"+_echoServerAddr, true)
+	Accelerate("tcp://:51501-51504", "tcp://"+_echoServerAddr, true)
 	// start tcp Accelerate front-end
 	// start tcp Accelerate back-end
 	// start tcp client
@@ -41,19 +43,33 @@ func TestMain(m *testing.M) {
 	signal.Notify(c, os.Interrupt)
 	signal.Notify(c, syscall.SIGTERM)
 	go func() {
+		rname := "waitSignal"
+		routineAdd(rname)
+		defer routineDel(rname)
+
 		<-c
 		panic(nil)
 	}()
 
 	go func() {
+		rname := "testTimeout"
+		routineAdd(rname)
+		defer routineDel(rname)
+
 		time.Sleep(time.Second * 8)
-		panic("case test took too long")
+		routinePrint()
+		time.Sleep(time.Second)
+		panic("RACE case test took too long")
 	}()
 
 	os.Exit(m.Run())
 }
 
 func servTCPEcho() {
+	rname := "servTCPEcho"
+	routineAdd(rname)
+	defer routineDel(rname)
+
 	l, err := net.Listen("tcp", _echoServerAddr)
 	if err != nil {
 		fmt.Println("Error listening:", err.Error())
@@ -89,9 +105,13 @@ func servTCPEcho() {
 // TestEchoServer ---
 func TestEchoServer(t *testing.T) {
 	var wg sync.WaitGroup
-	for i := 0; i < 30; i++ {
+	for i := 0; i < parrelelConn; i++ {
 		wg.Add(1)
 		go func() {
+			rname := "testEchoConn"
+			routineAdd(rname)
+			defer routineDel(rname)
+
 			testEchoConn(t)
 			wg.Done()
 		}()
@@ -106,11 +126,10 @@ func testEchoConn(t *testing.T) {
 	}
 	defer conn.Close()
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < echoRound; i++ {
 		testEchoRound(conn, t)
 	}
 
-	time.Sleep(time.Second)
 }
 
 func testEchoRound(conn net.Conn, t *testing.T) {
@@ -158,7 +177,10 @@ func TestGoroutineLeak(t *testing.T) {
 	n := runtime.NumGoroutine()
 	log.Println("NumGoroutine RACE:", n)
 	if n > 15 {
+		routinePrint()
 		//t.Fail()
 		//panic("goroutine leak")
 	}
+
+	time.Sleep(time.Second)
 }
