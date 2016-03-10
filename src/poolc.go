@@ -1,7 +1,7 @@
 package trafcacc
 
 import (
-	"log"
+	log "github.com/Sirupsen/logrus"
 	"net"
 	"sync"
 )
@@ -19,7 +19,7 @@ func newPoolc() *poolc {
 func (p *poolc) add(id uint32, conn net.Conn) {
 	p.mux.Lock()
 	defer p.mux.Unlock()
-	log.Println("poolc add")
+	log.Debugln("poolc add")
 	p.pool[id] = conn
 }
 

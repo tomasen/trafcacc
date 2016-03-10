@@ -4,10 +4,11 @@ import (
 	"encoding/gob"
 	"encoding/hex"
 	"errors"
-	"log"
 	"net"
 	"sync"
 	"sync/atomic"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 type packet struct {
@@ -18,7 +19,7 @@ type packet struct {
 
 // sendRaw only happens in backend to remote upstream addr
 func (t *trafcacc) sendRaw(p packet) {
-	log.Println("sendRaw", t.isbackend, p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
+	log.Debugln("sendRaw", t.roleString(), p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
 	// use cpool here , conn by connid
 	conn := t.cpool.get(p.Connid)
 	u := t.upool.next()
@@ -67,7 +68,7 @@ func (t *trafcacc) sendRaw(p packet) {
 
 // send packed data to backend, only used on front-end
 func (t *trafcacc) sendpkt(p packet) {
-	log.Println("sendpkt", t.isbackend, p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
+	log.Debugln("sendpkt", t.roleString(), p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
 	u := t.upool.next()
 
 	func() {
@@ -119,7 +120,7 @@ func (t *trafcacc) sendpkt(p packet) {
 	err := u.encoder.Encode(&p)
 	if err != nil {
 		u.close()
-		log.Println("sendpkt err:", err)
+		log.Debugln("sendpkt err:", err)
 		// reply error
 		t.replyRaw(packet{Connid: p.Connid})
 		return
@@ -128,16 +129,16 @@ func (t *trafcacc) sendpkt(p packet) {
 
 // reply Raw only happens in front-end to client
 func (t *trafcacc) replyRaw(p packet) {
-	log.Println("replyRaw", t.isbackend, p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
+	log.Debugln("replyRaw", t.roleString(), p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
 	conn := t.cpool.get(p.Connid)
 	defer t.closeQueue(p.Connid)
 	if conn == nil {
-		log.Println("reply to no-exist client conn", p)
+		log.Debugln("reply to no-exist client conn", p)
 		t.cpool.del(p.Connid)
 		return
 	}
 	if p.Seqid != 1 && p.Buf == nil {
-		log.Println("replyRaw close:", p)
+		log.Debugln("replyRaw close:", p)
 		conn.Close()
 		t.cpool.del(p.Connid)
 	} else {
@@ -146,7 +147,7 @@ func (t *trafcacc) replyRaw(p packet) {
 }
 
 func (t *trafcacc) replyPkt(p packet) error {
-	log.Println("replyPkt", t.isbackend, p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
+	log.Debugln("replyPkt", t.roleString(), p.Connid, p.Seqid, len(p.Buf), hex.EncodeToString(p.Buf))
 	conn := t.epool.next()
 	if conn != nil {
 		return conn.Encode(p)
@@ -197,7 +198,7 @@ func (t *trafcacc) ensure(p packet, conn net.Conn) {
 			defer routineDel(rname)
 
 			defer func() {
-				log.Println("exit cond")
+				log.Debugln("exit cond")
 				conn.Close()
 				t.closeQueue(p.Connid)
 			}()
@@ -209,10 +210,10 @@ func (t *trafcacc) ensure(p packet, conn net.Conn) {
 
 				cond.L.Lock()
 				for !exists(pq.queue, pq.lastseq+1) && atomic.LoadInt32(&pq.closed) == 0 {
-					log.Println(t.isbackend, "not exist", pq.queue, pq.lastseq+1)
+					log.Debugln(t.roleString(), "not exist", pq.queue, pq.lastseq+1)
 					cond.Wait()
 				}
-				log.Println(t.isbackend, "is exist", pq.queue, pq.lastseq+1)
+				log.Debugln(t.roleString(), "is exist", pq.queue, pq.lastseq+1)
 				lastseq := pq.lastseq + 1
 				cond.L.Unlock()
 
@@ -225,12 +226,12 @@ func (t *trafcacc) ensure(p packet, conn net.Conn) {
 							_, err := conn.Write(buf)
 							if err != nil {
 								// remove when connection closed
-								log.Println("cond write err", err)
+								log.Debugln("cond write err", err)
 								atomic.StoreInt32(&pq.closed, 1)
 								break
 							}
 						} else if i > 1 {
-							log.Println("cond write closed")
+							log.Debugln("cond write closed")
 							atomic.StoreInt32(&pq.closed, 1)
 							break
 						}

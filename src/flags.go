@@ -1,7 +1,7 @@
 package trafcacc
 
 import (
-	"log"
+	log "github.com/Sirupsen/logrus"
 	"net"
 	"strconv"
 	"strings"

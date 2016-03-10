@@ -1,7 +1,7 @@
 package trafcacc
 
 import (
-	"log"
+	log "github.com/Sirupsen/logrus"
 	"sync"
 )
 
@@ -24,6 +24,6 @@ func routineDel(name string) {
 
 func routinePrint() {
 	routineMux.RLock()
-	log.Println(routineList)
+	log.Debugln(routineList)
 	routineMux.RUnlock()
 }

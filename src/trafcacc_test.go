@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"math/rand"
 	"net"
 	"os"
@@ -16,6 +15,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 var (
@@ -25,12 +26,15 @@ var (
 )
 
 func TestMain(m *testing.M) {
+
+	log.SetLevel(log.DebugLevel)
+
 	// start echo server
 	go servTCPEcho()
 
-	Accelerate("tcp://:51500", "tcp://127.0.0.1:51501-51504", false)
+	Accelerate("tcp://:51500", "tcp://127.0.0.1:51501-51504", FRONTEND)
 
-	Accelerate("tcp://:51501-51504", "tcp://"+_echoServerAddr, true)
+	Accelerate("tcp://:51501-51504", "tcp://"+_echoServerAddr, BACKEND)
 	// start tcp Accelerate front-end
 	// start tcp Accelerate back-end
 	// start tcp client
@@ -175,7 +179,7 @@ func randomBytes(n int) []byte {
 func TestGoroutineLeak(t *testing.T) {
 	time.Sleep(time.Second)
 	n := runtime.NumGoroutine()
-	log.Println("NumGoroutine RACE:", n)
+	fmt.Println("NumGoroutine RACE:", n)
 	if n > 15 {
 		routinePrint()
 		//t.Fail()

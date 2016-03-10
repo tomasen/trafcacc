@@ -2,11 +2,12 @@ package main
 
 import (
 	"flag"
-	"log"
 	"os"
 	"os/signal"
 	"runtime"
 	"syscall"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/tomasen/trafcacc/src"
 )
