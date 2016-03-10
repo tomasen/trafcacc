@@ -21,8 +21,8 @@ import (
 
 var (
 	_echoServerAddr = "127.0.0.1:62863"
-	parrelelConn    = 1
-	echoRound       = 4
+	parrelelConn    = 30
+	echoRound       = 10
 )
 
 func TestMain(m *testing.M) {
@@ -91,6 +91,10 @@ func servTCPEcho() {
 		}
 		// Handle connections in a new goroutine.
 		go func(c net.Conn) {
+			rname := "servTCPEchoConn"
+			routineAdd(rname)
+			defer routineDel(rname)
+
 			defer c.Close()
 
 			_, err := io.Copy(c, c)
