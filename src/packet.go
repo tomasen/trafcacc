@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net"
 	"sync"
+	"time"
 
 	log "github.com/Sirupsen/logrus"
 )
@@ -73,10 +74,19 @@ func (t *trafcacc) sendRaw(p packet) {
 				b := make([]byte, buffersize)
 				for {
 					//TODO: how to break this loop when conn is closed
+					conn.SetReadDeadline(time.Now().Add(time.Second))
 					n, err := conn.Read(b)
 					if err != nil {
+						if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
+							continue
+						}
+						log.WithFields(log.Fields{
+							"connid": p.Connid,
+							"error":  err,
+						}).Debugln(t.roleString(), "remote connection read failed")
 						break
 					}
+					conn.SetReadDeadline(time.Time{})
 					err = t.replyPkt(packet{Connid: p.Connid, Seqid: seqid, Buf: b[0:n]})
 					if err != nil {
 						break
@@ -269,7 +279,10 @@ func (t *trafcacc) orderedWrite(pq *pktQueue, connid uint32, conn net.Conn) {
 	defer routineDel(rname)
 
 	defer func() {
-		log.Debugln(t.roleString(), "packet queue of", connid, " exit")
+		log.WithFields(log.Fields{
+			"connid": connid,
+			"conn": conn,
+		}).Debugln(t.roleString(), "packet queue exit")
 		if conn != nil {
 			conn.Close()
 		}
