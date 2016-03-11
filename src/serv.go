@@ -87,7 +87,7 @@ func (s *serv) hdlPkt(conn net.Conn) {
 		err := dec.Decode(&p)
 		if err != nil {
 			log.Debugln("hdlPacket err:", err)
-			// TODO: close or do some thing?
+			// TODO: just close or do some thing other?
 			break
 		}
 		s.ta.sendRaw(p)
@@ -119,7 +119,7 @@ func (s *serv) hdlRaw(conn net.Conn) {
 
 	buf := make([]byte, buffersize)
 	for {
-		// TODO: close connection by packet command
+		// TODO: close connection by packet command?
 		n, err := conn.Read(buf)
 		if err != nil {
 			if err != io.EOF {

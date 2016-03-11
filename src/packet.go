@@ -73,7 +73,7 @@ func (t *trafcacc) sendRaw(p packet) {
 				}()
 				b := make([]byte, buffersize)
 				for {
-					//TODO: how to break this loop when conn is closed
+					// break this loop when conn is closed
 					conn.SetReadDeadline(time.Now().Add(time.Second))
 					n, err := conn.Read(b)
 					if err != nil {
@@ -194,8 +194,7 @@ func (t *trafcacc) replyRaw(p packet) {
 			"zdata":  shrinkString(hex.EncodeToString(p.Buf)),
 		}).Debugln(t.roleString(), "reply to no-exist client conn")
 		t.cpool.del(p.Connid)
-		// TODO: how do I know next seqid
-		// do we really need send close command here?
+		// TODO: do we need send close command here?
 		// t.sendPkt(packet{Connid: p.Connid, Cmd: close})
 	}
 	t.pushToQueue(p, conn)
