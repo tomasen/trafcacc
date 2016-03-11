@@ -83,6 +83,7 @@ func (s *serv) hdlPkt(conn net.Conn) {
 	}()
 
 	for {
+		// TODO: avoid endless waiting?
 		p := packet{}
 		err := dec.Decode(&p)
 		if err != nil {

@@ -17,6 +17,7 @@ type upstream struct {
 }
 
 func (u *upstream) close() {
+	// TODO: need to be closed some time
 	u.mux.Lock()
 	defer u.mux.Unlock()
 	if u.conn != nil {

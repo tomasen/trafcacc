@@ -29,6 +29,7 @@ func (p *poole) next() *gob.Encoder {
 }
 
 func (p *poole) remove(c *gob.Encoder) {
+	// TODO: need to be called some time
 	p.mux.Lock()
 	defer p.mux.Unlock()
 	for id, v := range p.pl {
