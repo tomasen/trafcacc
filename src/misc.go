@@ -1,12 +1,13 @@
 package trafcacc
 
 import (
-	"log"
 	"net"
 	"runtime"
 	"strings"
 	"syscall"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 const maxopenfile = 3267600
@@ -42,7 +43,7 @@ func incMaxopenfile() {
 
 	var lim syscall.Rlimit
 	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &lim); err != nil {
-		log.Fatal("failed to get NOFILE rlimit: ", err)
+		log.Infoln("failed to get NOFILE rlimit: ", err)
 	}
 
 	if lim.Cur < maxopenfile || lim.Max < maxopenfile {
@@ -54,7 +55,7 @@ func incMaxopenfile() {
 		}
 
 		if err := syscall.Setrlimit(syscall.RLIMIT_NOFILE, &lim); err != nil {
-			log.Fatal("failed to set NOFILE rlimit: ", err)
+			log.Infoln("failed to set NOFILE rlimit: ", err)
 		}
 	}
 }
