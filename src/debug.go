@@ -1,8 +1,9 @@
 package trafcacc
 
 import (
-	log "github.com/Sirupsen/logrus"
 	"sync"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 var (

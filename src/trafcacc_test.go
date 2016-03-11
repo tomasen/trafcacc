@@ -21,7 +21,7 @@ import (
 
 var (
 	_echoServerAddr = "127.0.0.1:62863"
-	parrelelConn    = 30
+	parrelelConn    = 90
 	echoRound       = 10
 )
 
@@ -60,7 +60,7 @@ func TestMain(m *testing.M) {
 		routineAdd(rname)
 		defer routineDel(rname)
 
-		time.Sleep(time.Second * 8)
+		time.Sleep(time.Second * 18)
 		routinePrint()
 		time.Sleep(time.Second)
 		panic("RACE case test took too long")
@@ -181,7 +181,7 @@ func randomBytes(n int) []byte {
 }
 
 func TestGoroutineLeak(t *testing.T) {
-	time.Sleep(time.Second*2)
+	time.Sleep(time.Second)
 	n := runtime.NumGoroutine()
 	fmt.Println("NumGoroutine RACE:", n)
 	if n > 15 {
