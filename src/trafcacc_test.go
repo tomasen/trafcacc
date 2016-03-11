@@ -20,14 +20,16 @@ import (
 )
 
 var (
-	_echoServerAddr = "127.0.0.1:62863"
-	parrelelConn    = 90
-	echoRound       = 10
+	_echoServerAddr               = "127.0.0.1:62863"
+	dialRound                     = 3
+	parrelelConn                  = 10
+	echoRound                     = 10
+	testTimeout     time.Duration = 15
 )
 
 func TestMain(m *testing.M) {
 
-	log.SetLevel(log.DebugLevel)
+	//log.SetLevel(log.DebugLevel)
 
 	// start echo server
 	go servTCPEcho()
@@ -60,7 +62,7 @@ func TestMain(m *testing.M) {
 		routineAdd(rname)
 		defer routineDel(rname)
 
-		time.Sleep(time.Second * 18)
+		time.Sleep(time.Second * testTimeout)
 		routinePrint()
 		time.Sleep(time.Second)
 		panic("RACE case test took too long")
@@ -81,7 +83,7 @@ func servTCPEcho() {
 	}
 	// Close the listener when the application closes.
 	defer l.Close()
-	fmt.Println("Listening on " + _echoServerAddr)
+	log.Debugln("Listening on " + _echoServerAddr)
 	for {
 		// Listen for an incoming connection.
 		c, err := l.Accept()
@@ -97,15 +99,23 @@ func servTCPEcho() {
 
 			defer c.Close()
 
-			_, err := io.Copy(c, c)
-			switch err {
-			case io.EOF:
-				err = nil
-				return
-			case nil:
-				return
+			for {
+				c.SetReadDeadline(time.Now().Add(time.Second))
+				_, err := io.Copy(c, c)
+
+				switch err {
+				case io.EOF:
+					err = nil
+					return
+				case nil:
+					return
+				}
+				if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
+					// TODO: is this the only way to exit quickely when client close connection
+					return
+				}
+				panic(err)
 			}
-			panic(err)
 		}(c)
 	}
 }
@@ -113,16 +123,18 @@ func servTCPEcho() {
 // TestEchoServer ---
 func TestEchoServer(t *testing.T) {
 	var wg sync.WaitGroup
-	for i := 0; i < parrelelConn; i++ {
-		wg.Add(1)
-		go func() {
-			rname := "testEchoConn"
-			routineAdd(rname)
-			defer routineDel(rname)
+	for j := 0; j < dialRound; j++ {
+		for i := 0; i < parrelelConn; i++ {
+			wg.Add(1)
+			go func() {
+				rname := "testEchoConn"
+				routineAdd(rname)
+				defer routineDel(rname)
+				defer wg.Done()
 
-			testEchoConn(t)
-			wg.Done()
-		}()
+				testEchoConn(t)
+			}()
+		}
 	}
 	wg.Wait()
 }
@@ -158,14 +170,15 @@ func testEchoRound(conn net.Conn, t *testing.T) {
 		t.Fail()
 	}
 	if !bytes.Equal(out[:n0], rcv[:n1]) {
-		fmt.Println("out: ", n0, "in:", n1)
-
-		fmt.Println("out:", hex.EncodeToString(out))
-		fmt.Println("in: ", hex.EncodeToString(rcv))
-		fmt.Println(errors.New("echo server reply is not match"))
+		log.WithFields(log.Fields{
+			"len(out)": n0,
+			"len(in)":  n1,
+			"out":      shrinkString(hex.EncodeToString(out)),
+			"in":       shrinkString(hex.EncodeToString(rcv)),
+		}).Debugln(errors.New("echo server reply is not match"))
 		t.Fail()
 	} else {
-		fmt.Println("echo test", n0, "pass")
+		log.Debugln("echo test", n0, "pass")
 	}
 }
 
@@ -182,9 +195,10 @@ func randomBytes(n int) []byte {
 
 func TestGoroutineLeak(t *testing.T) {
 	time.Sleep(time.Second)
+
 	n := runtime.NumGoroutine()
-	fmt.Println("NumGoroutine RACE:", n)
-	if n > 15 {
+	log.Infoln("NumGoroutine:", n)
+	if n > 30 {
 		routinePrint()
 		//t.Fail()
 		//panic("goroutine leak")

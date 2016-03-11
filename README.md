@@ -7,6 +7,8 @@ backend picket the packet that arrived first and build connection to target netw
 
 TODO:
 
-- fix goroutine leak
-- send udp and tcp at same time
+- send 2 packet at a time
 - support udp
+- send udp and tcp at same time
+
+- fix goroutine leak

@@ -23,8 +23,14 @@ func routineDel(name string) {
 	routineMux.Unlock()
 }
 
+func routineGet(name string) int32 {
+	routineMux.Lock()
+	defer routineMux.Unlock()
+	return routineList[name]
+}
+
 func routinePrint() {
 	routineMux.RLock()
-	log.Debugln(routineList)
+	log.Infoln(routineList)
 	routineMux.RUnlock()
 }
