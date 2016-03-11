@@ -1,4 +1,7 @@
 # trafcacc
+[![Build Status](https://travis-ci.org/tomasen/trafcacc.svg?branch=master)](https://travis-ci.org/tomasen/trafcacc)
+[![Coverage Status](https://coveralls.io/repos/tomasen/trafcacc/badge.svg?branch=master&service=github)](https://coveralls.io/github/tomasen/trafcacc?branch=master)
+
 traffic accelerate proxy for tcp/udp
 
 frontend duplicate and distribute data packets to multiple upstream backend.
