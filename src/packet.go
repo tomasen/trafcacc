@@ -49,9 +49,13 @@ func (t *trafcacc) sendRaw(p packet) {
 		"zdata":  shrinkString(hex.EncodeToString(p.Buf)),
 	}).Debugln(t.roleString(), "sendRaw() to remote addr")
 
+	u := t.upool.next()
+
+	// TODO: optimize this lock
+	u.mux.Lock()
+	defer u.mux.Unlock()
 	// use cpool here , conn by connid
 	conn := t.cpool.get(p.Connid)
-	u := t.upool.next()
 
 	if conn == nil {
 		var err error
@@ -117,7 +121,7 @@ func (t *trafcacc) sendRaw(p packet) {
 // send packed data to backend, only used on front-end
 func (t *trafcacc) sendPkt(p packet) {
 	t.realSendPkt(p)
-	t.realSendPkt(p)
+	// t.realSendPkt(p)
 }
 
 func (t *trafcacc) realSendPkt(p packet) {
@@ -221,6 +225,7 @@ func (t *trafcacc) replyRaw(p packet) {
 
 // reply Packet only happens in backend to frontend
 func (t *trafcacc) replyPkt(p packet) error {
+	return t.realReplyPkt(p)
 	e1 := t.realReplyPkt(p)
 	e2 := t.realReplyPkt(p)
 

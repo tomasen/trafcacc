@@ -7,6 +7,8 @@ import (
 	"syscall"
 
 	"github.com/tomasen/trafcacc/src"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 func main() {
@@ -16,8 +18,14 @@ func main() {
 	listen := flag.String("listen", "<proto>://<ip>:<port begin-end>[,...] eg. udp://0.0.0.0:500", "listen to")
 	upstream := flag.String("upstream", "<proto>://<ip>:<port begin-end>[,...] eg. udp://172.0.0.1:2000-2100,192.168.1.1:2000-2050", "send to")
 	backend := flag.Bool("backend", false, "work as backend")
+	loglevel := flag.Bool("v", false, "set log level to debug")
 
 	flag.Parse()
+
+	if *loglevel {
+		log.SetLevel(log.DebugLevel)
+	}
+
 	if *backend {
 		trafcacc.Accelerate(*listen, *upstream, trafcacc.BACKEND)
 	} else {
