@@ -21,10 +21,13 @@ func exists(queue map[uint32]*packet, seqid uint32) bool {
 
 // remove by connid from packet queue pool
 func (t *trafcacc) removeQueue(connid uint32) {
+  log.WithFields(log.Fields{
+    "connid": connid,
+  }).Debugln(t.roleString(), "remove packet queue")
 	t.mux.Lock()
 	defer t.mux.Unlock()
-	pq := t.pq[connid]
-	if pq != nil {
+	_, ok := t.pq[connid]
+	if ok {
 		delete(t.pq, connid)
 	}
 }
@@ -93,8 +96,6 @@ func (t *trafcacc) orderedWrite(pq *pktQueue, connid uint32, conn net.Conn) {
 			cond.Wait()
 		}
 
-		cond.L.Unlock()
-
     lastseq := pq.lastseq + 1
 
     log.WithFields(log.Fields{
@@ -102,6 +103,9 @@ func (t *trafcacc) orderedWrite(pq *pktQueue, connid uint32, conn net.Conn) {
       "lastseq": lastseq,
       "queue":   keysOfmap(pq.queue),
     }).Debugln(t.roleString(), "new seq packet is ready to write")
+
+		cond.L.Unlock()
+
 
 		for i := lastseq; ; i++ {
 			cond.L.Lock()
@@ -134,6 +138,9 @@ func (t *trafcacc) orderedWrite(pq *pktQueue, connid uint32, conn net.Conn) {
 				}
 				cond.L.Lock()
 				pq.lastseq = i
+        if pq.lastseq == 0 {
+          log.Debugln(t.roleString(), "orderedWrite() set lastseq=0 might be issue")
+        }
 				delete(pq.queue, i)
 				cond.L.Unlock()
 			}

@@ -42,6 +42,13 @@ func (p packet) Copy() packet {
 
 // sendRaw only happens in backend to remote upstream addr
 func (t *trafcacc) sendRaw(p packet) {
+	if t.cpool.shouldDrop(p.Connid) {
+		log.WithFields(log.Fields{
+			"connid": p.Connid,
+			}).Debugln("drop packet for a closed connection")
+		return
+	}
+
 	log.WithFields(log.Fields{
 		"connid": p.Connid,
 		"seqid":  p.Seqid,
@@ -73,6 +80,7 @@ func (t *trafcacc) sendRaw(p packet) {
 				return
 			}
 			t.cpool.add(p.Connid, conn)
+
 			go func() {
 				log.Debugln(t.roleString(), "connected to remote begin to read")
 				rname := "sendRawRead"
