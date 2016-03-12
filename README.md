@@ -18,8 +18,14 @@ front-end:
 back-end:
 `trafcacc -backend=true -listen=tcp://:51501-51524 -upstream=tcp://remote-address:5201 -v`
 
+
+### Benchmark
+
+`go test -bench .`
+
 #### TODO
 
+- 修正 backend 和 frontend 必须同时重启来保证connid一致并才能正常工作的问题
 - send 2 packet at a time
 - support udp
 - send udp and tcp at same time

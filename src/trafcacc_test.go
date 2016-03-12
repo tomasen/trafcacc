@@ -27,7 +27,9 @@ var (
 	testTimeout     time.Duration = 15
 )
 
-func TestMain(m *testing.M) {
+var m = make(map[uint32]*packet)
+
+func TestMain(tm *testing.M) {
 
 	// log.SetLevel(log.DebugLevel)
 
@@ -68,7 +70,11 @@ func TestMain(m *testing.M) {
 		panic("RACE case test took too long")
 	}()
 
-	os.Exit(m.Run())
+	for i := uint32(0); i < 1000; i++ {
+		m[i] = nil
+	}
+
+	os.Exit(tm.Run())
 }
 
 func servTCPEcho() {
@@ -205,4 +211,23 @@ func TestGoroutineLeak(t *testing.T) {
 	}
 
 	time.Sleep(time.Second)
+}
+
+func BenchmarkKeysOfmap(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		keysOfmap(m)
+	}
+}
+
+func BenchmarkOldKeysOfmap(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		oldKeysOfmap(m)
+	}
+}
+
+func oldKeysOfmap(m map[uint32]*packet) (r []uint32) {
+	for k := range m {
+		r = append(r, k)
+	}
+	return
 }
