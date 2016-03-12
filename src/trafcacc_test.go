@@ -21,15 +21,15 @@ import (
 
 var (
 	_echoServerAddr               = "127.0.0.1:62863"
-	dialRound                     = 3
-	parrelelConn                  = 10
-	echoRound                     = 10
+	dialRound                     = 1
+	parrelelConn                  = 1
+	echoRound                     = 2
 	testTimeout     time.Duration = 15
 )
 
 func TestMain(m *testing.M) {
 
-	//log.SetLevel(log.DebugLevel)
+	// log.SetLevel(log.DebugLevel)
 
 	// start echo server
 	go servTCPEcho()
@@ -49,7 +49,7 @@ func TestMain(m *testing.M) {
 	signal.Notify(c, os.Interrupt)
 	signal.Notify(c, syscall.SIGTERM)
 	go func() {
-		rname := "waitSignal"
+		const rname = "waitSignal"
 		routineAdd(rname)
 		defer routineDel(rname)
 
@@ -58,7 +58,7 @@ func TestMain(m *testing.M) {
 	}()
 
 	go func() {
-		rname := "testTimeout"
+		const rname = "testTimeout"
 		routineAdd(rname)
 		defer routineDel(rname)
 
@@ -72,7 +72,7 @@ func TestMain(m *testing.M) {
 }
 
 func servTCPEcho() {
-	rname := "servTCPEcho"
+	const rname = "servTCPEcho"
 	routineAdd(rname)
 	defer routineDel(rname)
 
@@ -93,7 +93,7 @@ func servTCPEcho() {
 		}
 		// Handle connections in a new goroutine.
 		go func(c net.Conn) {
-			rname := "servTCPEchoConn"
+			const rname = "servTCPEchoConn"
 			routineAdd(rname)
 			defer routineDel(rname)
 
@@ -127,7 +127,7 @@ func TestEchoServer(t *testing.T) {
 		for i := 0; i < parrelelConn; i++ {
 			wg.Add(1)
 			go func() {
-				rname := "testEchoConn"
+				const rname = "testEchoConn"
 				routineAdd(rname)
 				defer routineDel(rname)
 				defer wg.Done()

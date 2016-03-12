@@ -83,7 +83,7 @@ func (t *trafcacc) sendRaw(p packet) {
 
 			go func() {
 				log.Debugln(t.roleString(), "connected to remote begin to read")
-				rname := "sendRawRead"
+				const rname = "sendRawRead"
 				routineAdd(rname)
 				defer routineDel(rname)
 
@@ -165,7 +165,7 @@ func (t *trafcacc) realSendPkt(p packet) {
 			u.decoder = gob.NewDecoder(conn)
 			// build packet reading slaves
 			go func() {
-				rname := "sendpktDecode"
+				const rname = "sendpktDecode"
 				routineAdd(rname)
 				defer routineDel(rname)
 

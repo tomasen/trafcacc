@@ -69,7 +69,7 @@ func (t *trafcacc) pushToQueue(p packet, conn net.Conn) {
 
 // ensure write order for this connid
 func (t *trafcacc) orderedWrite(pq *pktQueue, connid uint32, conn net.Conn) {
-	rname := "orderedWrite"
+	const rname = "orderedWrite"
 	routineAdd(rname)
 	defer routineDel(rname)
 

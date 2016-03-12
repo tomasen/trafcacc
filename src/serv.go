@@ -34,7 +34,7 @@ func (s *serv) listen() {
 }
 
 func (s *serv) acceptTCP() {
-	rname := "acceptTCP"
+	const rname = "acceptTCP"
 	routineAdd(rname)
 	defer routineDel(rname)
 
@@ -70,7 +70,7 @@ func (s *serv) acceptTCP() {
 
 // handle packed data from client side as backend
 func (s *serv) hdlPkt(conn net.Conn) {
-	rname := "hdlPacket"
+	const rname = "hdlPacket"
 	routineAdd(rname)
 	defer routineDel(rname)
 
@@ -97,7 +97,7 @@ func (s *serv) hdlPkt(conn net.Conn) {
 
 // handle raw data from client side as front-end
 func (s *serv) hdlRaw(conn net.Conn) {
-	rname := "hdlRaw"
+	const rname = "hdlRaw"
 	routineAdd(rname)
 	defer routineDel(rname)
 
