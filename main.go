@@ -24,6 +24,7 @@ func main() {
 	upstream := flag.String("upstream", "<proto>://<ip>:<port begin-end>[,...] eg. udp://172.0.0.1:2000-2100,192.168.1.1:2000-2050", "send to")
 	backend := flag.Bool("backend", false, "work as backend")
 	loglevel := flag.Bool("v", false, "set log level to debug")
+	pprof := flag.String("pprof", "", "pprof listen to")
 
 	flag.Parse()
 
@@ -37,9 +38,11 @@ func main() {
 		trafcacc.Accelerate(*listen, *upstream, trafcacc.FRONTEND)
 	}
 
-	go func() {
-		log.Println(http.ListenAndServe("localhost:60060", nil))
-	}()
+	if len(*pprof) != 0 {
+		go func() {
+			log.Println(http.ListenAndServe(*pprof, nil))
+		}()
+	}
 
 	go func() {
 		s := new(runtime.MemStats)
