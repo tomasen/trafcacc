@@ -8,6 +8,9 @@ import (
 
 	"github.com/tomasen/trafcacc/src"
 
+	"net/http"
+	_ "net/http/pprof"
+
 	log "github.com/Sirupsen/logrus"
 )
 
@@ -31,6 +34,10 @@ func main() {
 	} else {
 		trafcacc.Accelerate(*listen, *upstream, trafcacc.FRONTEND)
 	}
+
+	go func() {
+		log.Println(http.ListenAndServe("localhost:60060", nil))
+	}()
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
