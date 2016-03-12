@@ -9,15 +9,15 @@ import (
 
 // poolc holds connections for backend to remote
 type poolc struct {
-	mux  sync.RWMutex
-	pool map[uint32]net.Conn
+	mux    sync.RWMutex
+	pool   map[uint32]net.Conn
 	closed map[uint32]struct{}
 	lastid uint32
 }
 
 func newPoolc() *poolc {
 	return &poolc{
-		pool: make(map[uint32]net.Conn),
+		pool:   make(map[uint32]net.Conn),
 		closed: make(map[uint32]struct{}),
 		lastid: 1,
 	}
@@ -36,7 +36,7 @@ func (p *poolc) shouldDrop(id uint32) bool {
 	return false
 }
 
-func (p *poolc) add(id uint32, conn net.Conn) error{
+func (p *poolc) add(id uint32, conn net.Conn) error {
 	p.mux.Lock()
 	defer p.mux.Unlock()
 	log.WithFields(log.Fields{

@@ -26,18 +26,18 @@ type packet struct {
 }
 
 func (p packet) Copy() packet {
-    r := packet{
-			Connid:p.Connid,
-			Seqid:p.Seqid,
-			Cmd:p.Cmd,
-		}
+	r := packet{
+		Connid: p.Connid,
+		Seqid:  p.Seqid,
+		Cmd:    p.Cmd,
+	}
 
-		if p.Buf != nil {
-			r.Buf = make([]byte, buffersize)
-			copy(r.Buf, p.Buf)
-		}
+	if p.Buf != nil {
+		r.Buf = make([]byte, buffersize)
+		copy(r.Buf, p.Buf)
+	}
 
-		return r
+	return r
 }
 
 // sendRaw only happens in backend to remote upstream addr
@@ -45,7 +45,7 @@ func (t *trafcacc) sendRaw(p packet) {
 	if t.cpool.shouldDrop(p.Connid) {
 		log.WithFields(log.Fields{
 			"connid": p.Connid,
-			}).Debugln("drop packet for a closed connection")
+		}).Debugln("drop packet for a closed connection")
 		return
 	}
 

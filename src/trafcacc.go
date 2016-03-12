@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	buffersize          = 4096*2
+	buffersize          = 4096 * 2
 	_BackendDialTimeout = 5
 )
 

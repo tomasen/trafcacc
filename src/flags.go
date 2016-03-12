@@ -1,10 +1,11 @@
 package trafcacc
 
 import (
-	log "github.com/Sirupsen/logrus"
 	"net"
 	"strconv"
 	"strings"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 // client-->server
