@@ -4,7 +4,9 @@ import (
 	"flag"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
+	"time"
 
 	"github.com/tomasen/trafcacc/src"
 
@@ -37,6 +39,22 @@ func main() {
 
 	go func() {
 		log.Println(http.ListenAndServe("localhost:60060", nil))
+	}()
+
+	go func() {
+		s := new(runtime.MemStats)
+		for {
+			runtime.ReadMemStats(s)
+			log.WithFields(log.Fields{
+				"NumGoroutine": runtime.NumGoroutine(),
+				"Alloc":        s.Alloc,
+				"HeapAlloc":    s.HeapAlloc,
+				"HeapIdle":     s.HeapIdle,
+				"HeapInuse":    s.HeapInuse,
+				"HeapObjects":  s.HeapObjects,
+			}).Infoln("status")
+			time.Sleep(time.Second)
+		}
 	}()
 
 	c := make(chan os.Signal, 1)
