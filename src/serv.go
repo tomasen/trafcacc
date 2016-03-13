@@ -11,10 +11,10 @@ import (
 )
 
 type serv struct {
+	*trafcacc
 	proto string
 	addr  string
 	ln    net.Listener
-	ta    *trafcacc
 }
 
 func (s *serv) listen() {
@@ -59,26 +59,26 @@ func (s *serv) acceptTCP() {
 		}
 		tempDelay = 0
 
-		switch s.ta.role {
+		switch s.role {
 		case BACKEND:
-			go s.hdlPkt(conn)
+			go s.packetHandler(conn)
 		case FRONTEND:
-			go s.hdlRaw(conn)
+			go s.rawHandler(conn)
 		}
 	}
 }
 
 // handle packed data from client side as backend
-func (s *serv) hdlPkt(conn net.Conn) {
-	const rname = "hdlPacket"
+func (s *serv) packetHandler(conn net.Conn) {
+	const rname = "packetHandler"
 	routineAdd(rname)
 	defer routineDel(rname)
 
 	dec := gob.NewDecoder(conn)
 	enc := gob.NewEncoder(conn)
-	s.ta.epool.add(enc)
+	s.epool.add(enc)
 	defer func() {
-		s.ta.epool.remove(enc)
+		s.epool.remove(enc)
 		conn.Close()
 	}()
 
@@ -87,35 +87,35 @@ func (s *serv) hdlPkt(conn net.Conn) {
 		p := packet{}
 		err := dec.Decode(&p)
 		if err != nil {
-			log.Debugln("hdlPacket err:", err)
+			log.Debugln("packetHandler() err:", err)
 			// TODO: just close or do some thing other?
 			break
 		}
-		s.ta.sendRaw(p)
+		s.sendRaw(p)
 	}
 }
 
 // handle raw data from client side as front-end
-func (s *serv) hdlRaw(conn net.Conn) {
-	const rname = "hdlRaw"
+func (s *serv) rawHandler(conn net.Conn) {
+	const rname = "rawHandler"
 	routineAdd(rname)
 	defer routineDel(rname)
 
 	defer conn.Close()
 
-	connid := atomic.AddUint32(&s.ta.atomicid, 1)
-	s.ta.cpool.add(connid, conn)
+	connid := atomic.AddUint32(&s.atomicid, 1)
+	s.cpool.add(connid, conn)
 
 	seqid := uint32(1)
 	// send connect command to backend to estabilish connection
-	s.ta.sendPkt(packet{Connid: connid, Seqid: seqid, Cmd: connect})
+	s.sendPkt(packet{Connid: connid, Seqid: seqid, Cmd: connect})
 
 	defer func() {
-		s.ta.sendPkt(packet{Connid: connid, Seqid: seqid + 1, Cmd: close})
+		s.sendPkt(packet{Connid: connid, Seqid: seqid + 1, Cmd: close})
 		log.WithFields(log.Fields{
 			"connid": connid,
-		}).Debugln(s.ta.roleString(), "hdlRaw() exit")
-		s.ta.cpool.del(connid)
+		}).Debugln(s.roleString(), "rawHandler() exit")
+		s.cpool.del(connid)
 	}()
 
 	buf := make([]byte, buffersize)
@@ -124,12 +124,12 @@ func (s *serv) hdlRaw(conn net.Conn) {
 		n, err := conn.Read(buf)
 		if err != nil {
 			if err != io.EOF {
-				log.Debugln(s.ta.roleString(), "read from client error:", err)
+				log.Debugln(s.roleString(), "read from client error:", err)
 			}
 			break
 		} else {
 			seqid++
-			s.ta.sendPkt(packet{Connid: connid, Seqid: seqid, Buf: buf[:n]})
+			s.sendPkt(packet{Connid: connid, Seqid: seqid, Buf: buf[:n]})
 		}
 	}
 }

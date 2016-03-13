@@ -70,7 +70,7 @@ func (t *trafcacc) accelerate(l, u string, role tag) {
 		// begin to listen
 		for p := e.portBegin; p <= e.portEnd; p++ {
 			// listen to lhost:lport+p
-			s := serv{proto: e.proto, addr: net.JoinHostPort(e.host, strconv.Itoa(p)), ta: t}
+			s := serv{trafcacc: t, proto: e.proto, addr: net.JoinHostPort(e.host, strconv.Itoa(p))}
 			s.listen()
 		}
 	}
