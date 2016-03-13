@@ -22,7 +22,7 @@ func main() {
 	// -listen=udp://:2000-2100 -upstream=tcp://172.0.0.1:500
 	listen := flag.String("listen", "<proto>://<ip>:<port begin-end>[,...] eg. udp://0.0.0.0:500", "listen to")
 	upstream := flag.String("upstream", "<proto>://<ip>:<port begin-end>[,...] eg. udp://172.0.0.1:2000-2100,192.168.1.1:2000-2050", "send to")
-	backend := flag.Bool("backend", false, "work as backend")
+	role := flag.String("role", "frontend", "work as backend or frontend")
 	loglevel := flag.Bool("v", false, "set log level to debug")
 	pprof := flag.String("pprof", "", "pprof listen to")
 
@@ -32,9 +32,10 @@ func main() {
 		log.SetLevel(log.DebugLevel)
 	}
 
-	if *backend {
+	switch *role {
+	case "backend":
 		trafcacc.Accelerate(*listen, *upstream, trafcacc.BACKEND)
-	} else {
+	default:
 		trafcacc.Accelerate(*listen, *upstream, trafcacc.FRONTEND)
 	}
 
@@ -46,17 +47,14 @@ func main() {
 
 	go func() {
 		s := new(runtime.MemStats)
-		for {
+		ct := time.Tick(3 * time.Second)
+		for _ = range ct {
 			runtime.ReadMemStats(s)
 			log.WithFields(log.Fields{
 				"NumGoroutine": runtime.NumGoroutine(),
 				"Alloc":        s.Alloc,
-				"HeapAlloc":    s.HeapAlloc,
-				"HeapIdle":     s.HeapIdle,
-				"HeapInuse":    s.HeapInuse,
 				"HeapObjects":  s.HeapObjects,
 			}).Infoln("status")
-			time.Sleep(time.Second)
 		}
 	}()
 
