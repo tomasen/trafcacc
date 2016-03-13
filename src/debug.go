@@ -1,3 +1,5 @@
+// debug.go 辅助 Debug 的一些 helper function
+
 package trafcacc
 
 import (

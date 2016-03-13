@@ -1,3 +1,5 @@
+// trafcacc.go 启动 traffic accelerate proxy
+
 package trafcacc
 
 import (

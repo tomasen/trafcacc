@@ -1,3 +1,5 @@
+// flags.go 用来分析参数(例如命令行参数)的 parser
+
 package trafcacc
 
 import (
@@ -8,8 +10,6 @@ import (
 	log "github.com/Sirupsen/logrus"
 )
 
-// client-->server
-// client-->(serv-->trafcacc-->upstream)==>(serv-->trafcacc-->upstream) --> server
 type endpoint struct {
 	proto     string
 	host      string

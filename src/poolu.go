@@ -1,3 +1,5 @@
+// poolu.go 连接池为 frontend 存放发向 backend 之间的连接
+
 package trafcacc
 
 import (

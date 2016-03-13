@@ -1,3 +1,5 @@
+// packet.go 数据包的收发，数据包与Raw数据之间的 Pack 和 Unpack 处理，Raw数据 的收发
+
 package trafcacc
 
 import (

@@ -1,3 +1,5 @@
+// misc.go 辅助的 helper functions
+
 package trafcacc
 
 import (

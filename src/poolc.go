@@ -1,3 +1,5 @@
+// poolc.go 存放 backend 和 remote 目标服务之间的连接池
+
 package trafcacc
 
 import (

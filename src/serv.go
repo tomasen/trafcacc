@@ -1,3 +1,5 @@
+// serv.go 监听端口和分发收到的数据或数据包
+
 package trafcacc
 
 import (

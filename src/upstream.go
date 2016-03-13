@@ -1,3 +1,5 @@
+// upstream.go 为 frontend 存放发向 backend 的连接的连接信息
+
 package trafcacc
 
 import (

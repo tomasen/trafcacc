@@ -1,3 +1,5 @@
+// poolc.go 连接池为 backend 存放来自 frontend 之间的连接
+
 package trafcacc
 
 import (

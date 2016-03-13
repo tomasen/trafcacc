@@ -1,3 +1,5 @@
+// queue.go 发送Raw数据前的数据包队列，同时过滤和去除重复数据包的
+
 package trafcacc
 
 import (
