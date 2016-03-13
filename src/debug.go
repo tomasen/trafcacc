@@ -14,6 +14,10 @@ var (
 	routineMux  = &sync.RWMutex{}
 )
 
+type Trafcacc interface {
+	PrintStatus()
+}
+
 func (t *trafcacc) PrintStatus() {
 	s := new(runtime.MemStats)
 	runtime.ReadMemStats(s)

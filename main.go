@@ -31,7 +31,7 @@ func main() {
 		log.SetLevel(log.DebugLevel)
 	}
 
-	var t *trafcacc.Trafcacc
+	var t trafcacc.Trafcacc
 	switch *role {
 	case "backend":
 		t = trafcacc.Accelerate(*listen, *upstream, trafcacc.BACKEND)

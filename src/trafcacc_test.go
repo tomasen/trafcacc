@@ -25,8 +25,8 @@ var (
 	parrelelConn                  = 1
 	echoRound                     = 2
 	testTimeout     time.Duration = 15
-	backend         *trafcacc
-	frontend        *trafcacc
+	backend         Trafcacc
+	frontend        Trafcacc
 )
 
 var m = make(map[uint32]*packet)

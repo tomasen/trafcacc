@@ -24,10 +24,6 @@ const (
 	FRONTEND tag = false
 )
 
-type Trafcacc struct {
-	*trafcacc
-}
-
 type trafcacc struct {
 	role     tag
 	once     sync.Once
@@ -42,7 +38,7 @@ type trafcacc struct {
 }
 
 // Accelerate traffic by setup listening port and upstream
-func Accelerate(l, u string, role tag) *Trafcacc {
+func Accelerate(l, u string, role tag) Trafcacc {
 	increaseMaxopenfile()
 	increaseGomaxprocs()
 
@@ -56,7 +52,7 @@ func Accelerate(l, u string, role tag) *Trafcacc {
 		t.accelerate(l, u, role)
 	})
 
-	return &Trafcacc{t}
+	return t
 }
 
 // Accelerate traffic start by flag strings
