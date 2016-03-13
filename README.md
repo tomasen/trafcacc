@@ -25,8 +25,9 @@ back-end:
 
 #### TODO
 
-- 修正 backend 和 frontend 必须同时重启来保证connid一致并才能正常工作的问题
-- send 2 packet at a time
-- support udp
-- send udp and tcp at same time
+- 修正 backend 和 frontend 必须同时重启来保证connid一致并才能正常工作的问题。
+这个问题产生的原因是connid由frontend生成，同时backend有需要保留一个已经关闭的connid的列表
+来drop哪些已经关闭的连接的数据，而不是为已经关闭的连接建立新的到remote-addr的连接。
+- send 2 packet at a time。问题是是否应该在这里使用goroutine。使用goroutine会让问题复杂化，例如更多的内存复制或锁。
+- support udp 和 send udp and tcp at same time ， 后者和上一个问题 send 2 packet at a time 也有关
 - fix goroutine leak if any

@@ -38,8 +38,8 @@ func routinePrint() {
 
 func keysOfmap(m map[uint32]*packet) []uint32 {
 	rlen := len(m)
-	if rlen > 15 {
-		rlen = 15
+	if rlen > 10 {
+		rlen = 10
 	}
 	r := make([]uint32, rlen)
 	i := 0
@@ -55,8 +55,8 @@ func keysOfmap(m map[uint32]*packet) []uint32 {
 
 func shrinkString(s string) string {
 	l := len(s)
-	if l > 30 {
-		return s[:15] + "..." + s[l-15:l]
+	if l > 20 {
+		return s[:10] + "..." + s[l-10:l]
 	}
 	return s
 }

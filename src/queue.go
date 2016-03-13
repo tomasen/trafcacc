@@ -57,11 +57,12 @@ func (t *trafcacc) pushToQueue(p packet, conn net.Conn) {
 	cond.L.Lock()
 	pq.queue[p.Seqid] = &p
 	log.WithFields(log.Fields{
-		"connid":  p.Connid,
-		"seqid":   p.Seqid,
-		"Cmd":     p.Cmd,
-		"lastseq": pq.lastseq,
-		"queue":   keysOfmap(pq.queue),
+		"connid":    p.Connid,
+		"seqid":     p.Seqid,
+		"Cmd":       p.Cmd,
+		"lastseq":   pq.lastseq,
+		"quelength": len(pq.queue),
+		"queue":     keysOfmap(pq.queue),
 	}).Debugln(t.roleString(), "add new seq to queue")
 	cond.L.Unlock()
 	cond.Signal()
@@ -89,9 +90,10 @@ func (t *trafcacc) orderedWrite(pq *pktQueue, connid uint32, conn net.Conn) {
 		cond.L.Lock()
 		for !exists(pq.queue, pq.lastseq+1) {
 			log.WithFields(log.Fields{
-				"connid":  connid,
-				"waitseq": pq.lastseq + 1,
-				"queue":   keysOfmap(pq.queue),
+				"connid":    connid,
+				"waitseq":   pq.lastseq + 1,
+				"quelength": len(pq.queue),
+				"queue":     keysOfmap(pq.queue),
 			}).Debugln(t.roleString(), "wait for next seq id")
 			cond.Wait()
 		}
@@ -99,9 +101,10 @@ func (t *trafcacc) orderedWrite(pq *pktQueue, connid uint32, conn net.Conn) {
 		lastseq := pq.lastseq + 1
 
 		log.WithFields(log.Fields{
-			"connid":  connid,
-			"lastseq": lastseq,
-			"queue":   keysOfmap(pq.queue),
+			"connid":    connid,
+			"lastseq":   lastseq,
+			"queue":     keysOfmap(pq.queue),
+			"quelength": len(pq.queue),
 		}).Debugln(t.roleString(), "new seq packet is ready to write")
 
 		cond.L.Unlock()
