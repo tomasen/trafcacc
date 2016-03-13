@@ -84,7 +84,7 @@ func (s *serv) packetHandler(conn net.Conn) {
 
 	for {
 		// TODO: avoid endless waiting? without break the data packet
-		conn.SetReadDeadline(time.Now().Add(time.Second * decodetimeout))
+		// conn.SetReadDeadline(time.Now().Add(time.Second * decodetimeout))
 		p := packet{}
 		err := dec.Decode(&p)
 		if err != nil {

@@ -210,10 +210,9 @@ func (t *trafcacc) pktDecode(u *upstream) {
 
 	u.mux.RLock()
 	dec := u.decoder
-	conn := u.conn
 	u.mux.RUnlock()
 	for {
-		conn.SetReadDeadline(time.Now().Add(time.Second * decodetimeout))
+		// u.conn.SetReadDeadline(time.Now().Add(time.Second * decodetimeout))
 		p := packet{}
 		err := dec.Decode(&p)
 		if err != nil {
