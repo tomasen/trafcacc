@@ -83,10 +83,14 @@ func (s *serv) packetHandler(conn net.Conn) {
 	}()
 
 	for {
-		// TODO: avoid endless waiting?
+		// TODO: avoid endless waiting? without break the data packet
+		conn.SetReadDeadline(time.Now().Add(time.Second * decodetimeout))
 		p := packet{}
 		err := dec.Decode(&p)
 		if err != nil {
+			if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
+				continue
+			}
 			if log.GetLevel() >= log.DebugLevel {
 				log.Debugln("packetHandler() err:", err)
 			}

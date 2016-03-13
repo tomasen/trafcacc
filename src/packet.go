@@ -73,7 +73,7 @@ func (t *trafcacc) sendRaw(p packet) {
 		// dial
 		switch u.proto {
 		case "tcp":
-			conn, err = net.Dial("tcp", u.addr)
+			conn, err = dialTimeout("tcp", u.addr, time.Second*time.Duration(dialtimeout))
 			if err != nil {
 				log.WithFields(log.Fields{
 					"connid": p.Connid,
@@ -164,7 +164,7 @@ func (t *trafcacc) realSendPkt(p packet) {
 		// dial
 		switch u.proto {
 		case "tcp":
-			conn, err := net.Dial("tcp", u.addr)
+			conn, err := dialTimeout("tcp", u.addr, time.Second*time.Duration(dialtimeout))
 			if err != nil {
 				// reply error and close connection to client
 				if log.GetLevel() >= log.DebugLevel {
@@ -210,11 +210,17 @@ func (t *trafcacc) pktDecode(u *upstream) {
 
 	u.mux.RLock()
 	dec := u.decoder
+	conn := u.conn
 	u.mux.RUnlock()
 	for {
+		conn.SetReadDeadline(time.Now().Add(time.Second * decodetimeout))
 		p := packet{}
 		err := dec.Decode(&p)
 		if err != nil {
+			if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
+				continue
+			}
+
 			if log.GetLevel() >= log.DebugLevel {
 				log.WithFields(log.Fields{
 					"connid": p.Connid,

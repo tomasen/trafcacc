@@ -149,7 +149,7 @@ func TestEchoServer(t *testing.T) {
 }
 
 func testEchoConn(t *testing.T) {
-	conn, err := dialTimeout("tcp", "127.0.0.1:51500", time.Second*time.Duration(_BackendDialTimeout))
+	conn, err := dialTimeout("tcp", "127.0.0.1:51500", time.Second*time.Duration(dialtimeout/3))
 	if err != nil {
 		panic(err)
 	}
