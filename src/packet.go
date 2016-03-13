@@ -167,29 +167,7 @@ func (t *trafcacc) realSendPkt(p packet) {
 			u.encoder = gob.NewEncoder(conn)
 			u.decoder = gob.NewDecoder(conn)
 			// build packet reading slaves
-			go func() {
-				const rname = "sendpktDecode"
-				routineAdd(rname)
-				defer routineDel(rname)
-
-				defer u.close()
-
-				u.mux.RLock()
-				dec := u.decoder
-				u.mux.RUnlock()
-				for {
-					p := packet{}
-					err := dec.Decode(&p)
-					if err != nil {
-						log.WithFields(log.Fields{
-							"connid": p.Connid,
-							"error":  err,
-						}).Debugln(t.roleString(), "read packet from backend failed")
-						return
-					}
-					t.replyRaw(p)
-				}
-			}()
+			go t.pktDecode(u)
 		case "udp":
 			// TODO: udp
 		}
@@ -205,6 +183,31 @@ func (t *trafcacc) realSendPkt(p packet) {
 		// reply error and close connection to client
 		t.replyRaw(packet{Connid: p.Connid, Cmd: close})
 		return
+	}
+}
+
+// read and decode packed data from backend, only used on front-end
+func (t *trafcacc) pktDecode(u *upstream) {
+	const rname = "pktDecode"
+	routineAdd(rname)
+	defer routineDel(rname)
+
+	defer u.close()
+
+	u.mux.RLock()
+	dec := u.decoder
+	u.mux.RUnlock()
+	for {
+		p := packet{}
+		err := dec.Decode(&p)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"connid": p.Connid,
+				"error":  err,
+			}).Debugln(t.roleString(), "read packet from backend failed")
+			return
+		}
+		t.replyRaw(p)
 	}
 }
 
