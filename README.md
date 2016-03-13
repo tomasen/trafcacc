@@ -25,6 +25,8 @@ back-end:
 
 #### TODO
 
+- test case use iperf3
+- separated goroutine for maintain packet connection
 - 修正 backend 和 frontend 必须同时重启来保证connid一致并才能正常工作的问题。
 这个问题产生的原因是connid由frontend生成，同时backend有需要保留一个已经关闭的connid的列表
 来drop哪些已经关闭的连接的数据包，而不是为已经关闭的连接建立新的到remote-addr的连接。

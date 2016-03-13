@@ -22,7 +22,7 @@ import (
 var (
 	_echoServerAddr               = "127.0.0.1:62863"
 	dialRound                     = 1
-	parrelelConn                  = 1
+	parrelelConn                  = 2
 	echoRound                     = 2
 	testTimeout     time.Duration = 15
 	backend         Trafcacc
@@ -32,6 +32,11 @@ var (
 var m = make(map[uint32]*packet)
 
 func TestMain(tm *testing.M) {
+
+	if len(os.Getenv("IPERF")) != 0 {
+		os.Exit(tm.Run())
+		return
+	}
 
 	log.SetLevel(log.DebugLevel)
 
@@ -131,6 +136,10 @@ func servTCPEcho() {
 
 // TestEchoServer ---
 func TestEchoServer(t *testing.T) {
+	if len(os.Getenv("IPERF")) != 0 {
+		return
+	}
+
 	var wg sync.WaitGroup
 	for j := 0; j < dialRound; j++ {
 		for i := 0; i < parrelelConn; i++ {
