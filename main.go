@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"math/rand"
 	"os"
 	"os/signal"
 	"syscall"
@@ -16,6 +17,7 @@ import (
 )
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
 
 	// -listen=tcp://:500 -upstream=udp://172.0.0.1:2000-2100
 	// -listen=udp://:2000-2100 -upstream=tcp://172.0.0.1:500

@@ -3,6 +3,7 @@
 package trafcacc
 
 import (
+	"math/rand"
 	"net"
 	"strconv"
 	"sync"
@@ -28,6 +29,7 @@ const (
 type trafcacc struct {
 	role     tag
 	once     sync.Once
+	serverid uint32
 	atomicid uint32
 	cpool    *poolc
 	upool    *poolu
@@ -48,6 +50,7 @@ func Accelerate(l, u string, role tag) Trafcacc {
 	t.upool = &poolu{}
 	t.epool = &poole{}
 	t.pq = make(map[uint32]*pktQueue)
+	t.serverid = rand.Uint32()
 	// make sure this only run once pre-instance
 	t.once.Do(func() {
 		t.accelerate(l, u, role)
