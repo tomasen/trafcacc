@@ -129,8 +129,12 @@ func (s *serv) rawHandler(conn net.Conn) {
 	buf := make([]byte, buffersize)
 	for {
 		// TODO: close connection by packet command?
+		conn.SetReadDeadline(time.Now().Add(time.Second))
 		n, err := conn.Read(buf)
 		if err != nil {
+			if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
+				continue
+			}
 			if err != io.EOF {
 				if log.GetLevel() >= log.DebugLevel {
 					log.Debugln(s.roleString(), "read from client error:", err)
