@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	routineList = make(map[string]int)
+	routinelist = make(map[string]int)
 	routineMux  = &sync.RWMutex{}
 )
 
@@ -23,30 +23,39 @@ func (t *trafcacc) PrintStatus() {
 	runtime.ReadMemStats(s)
 	routineMux.RLock()
 	totalGoroutineTracked := 0
-	for _, v := range routineList {
+	for _, v := range routinelist {
 		totalGoroutineTracked += v
 	}
 
-	log.WithFields(log.Fields{
+	tq, tp := t.queueStatus()
+
+	fields := log.Fields{
 		"NumGoroutine":     runtime.NumGoroutine(),
 		"Alloc":            s.Alloc,
 		"HeapObjects":      s.HeapObjects,
 		"TrackedGoroutine": totalGoroutineTracked,
-		"Detail":           routineList,
-	}).Infoln(t.roleString(), "status")
+		"QueueCount":       tq,
+		"PacketInQueue":    tp,
+	}
+
+	if log.GetLevel() >= log.DebugLevel {
+		fields["RoutineDetail"] = routinelist
+	}
+
+	log.WithFields(fields).Infoln(t.roleString(), "status")
 
 	routineMux.RUnlock()
 }
 
 func routineAdd(name string) {
 	routineMux.Lock()
-	routineList[name] = routineList[name] + 1
+	routinelist[name] = routinelist[name] + 1
 	routineMux.Unlock()
 }
 
 func routineDel(name string) {
 	routineMux.Lock()
-	routineList[name] = routineList[name] - 1
+	routinelist[name] = routinelist[name] - 1
 	routineMux.Unlock()
 }
 

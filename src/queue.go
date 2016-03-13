@@ -34,6 +34,17 @@ func (t *trafcacc) removeQueue(connid uint32) {
 	}
 }
 
+func (t *trafcacc) queueStatus() (totalqueue, totalpacket int) {
+	t.mux.Lock()
+	defer t.mux.Unlock()
+	for _, v := range t.pq {
+		v.cond.L.Lock()
+		totalpacket += len(v.queue)
+		v.cond.L.Unlock()
+	}
+	return len(t.pq), totalpacket
+}
+
 // ensure Write to client and remote in sequence
 func (t *trafcacc) pushToQueue(p packet, conn net.Conn) {
 	// TODO: just write if it's udp?
