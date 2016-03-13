@@ -134,7 +134,7 @@ func (t *trafcacc) rawRead(connid uint32, conn net.Conn) {
 // send packed data to backend, only used on front-end
 func (t *trafcacc) sendPkt(p packet) {
 	t.realSendPkt(p)
-	// t.realSendPkt(p)
+	t.realSendPkt(p)
 }
 
 func (t *trafcacc) realSendPkt(p packet) {
@@ -240,19 +240,14 @@ func (t *trafcacc) replyRaw(p packet) {
 }
 
 // reply Packet only happens in backend to frontend
-func (t *trafcacc) replyPkt(p packet) error {
-	return t.realReplyPkt(p)
-	e1 := t.realReplyPkt(p)
-	e2 := t.realReplyPkt(p)
-
-	if e1 != nil && e2 != nil {
-		if e1 != nil {
-			return e1
-		}
-
-		if e2 != nil {
-			return e2
-		}
+func (t *trafcacc) replyPkt(p packet) (err error) {
+	err = t.realReplyPkt(p)
+	if err != nil {
+		return err
+	}
+	err = t.realReplyPkt(p)
+	if err != nil {
+		return err
 	}
 
 	return nil

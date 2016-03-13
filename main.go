@@ -4,7 +4,6 @@ import (
 	"flag"
 	"os"
 	"os/signal"
-	"runtime"
 	"syscall"
 	"time"
 
@@ -32,11 +31,12 @@ func main() {
 		log.SetLevel(log.DebugLevel)
 	}
 
+	var t *trafcacc.Trafcacc
 	switch *role {
 	case "backend":
-		trafcacc.Accelerate(*listen, *upstream, trafcacc.BACKEND)
+		t = trafcacc.Accelerate(*listen, *upstream, trafcacc.BACKEND)
 	default:
-		trafcacc.Accelerate(*listen, *upstream, trafcacc.FRONTEND)
+		t = trafcacc.Accelerate(*listen, *upstream, trafcacc.FRONTEND)
 	}
 
 	if len(*pprof) != 0 {
@@ -46,15 +46,9 @@ func main() {
 	}
 
 	go func() {
-		s := new(runtime.MemStats)
 		ct := time.Tick(3 * time.Second)
 		for _ = range ct {
-			runtime.ReadMemStats(s)
-			log.WithFields(log.Fields{
-				"NumGoroutine": runtime.NumGoroutine(),
-				"Alloc":        s.Alloc,
-				"HeapObjects":  s.HeapObjects,
-			}).Infoln("status")
+			t.PrintStatus()
 		}
 	}()
 

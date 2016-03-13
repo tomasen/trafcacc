@@ -25,6 +25,8 @@ var (
 	parrelelConn                  = 1
 	echoRound                     = 2
 	testTimeout     time.Duration = 15
+	backend         *trafcacc
+	frontend        *trafcacc
 )
 
 var m = make(map[uint32]*packet)
@@ -36,16 +38,16 @@ func TestMain(tm *testing.M) {
 	// start echo server
 	go servTCPEcho()
 
-	Accelerate("tcp://:51500", "tcp://127.0.0.1:51501-51504", FRONTEND)
+	frontend = Accelerate("tcp://:51500", "tcp://127.0.0.1:51501-51504", FRONTEND)
+	backend = Accelerate("tcp://:51501-51504", "tcp://"+_echoServerAddr, BACKEND)
 
-	Accelerate("tcp://:51501-51504", "tcp://"+_echoServerAddr, BACKEND)
 	// start tcp Accelerate front-end
 	// start tcp Accelerate back-end
 	// start tcp client
 	// start udp Accelerate
 	// start udp client
 	rand.Seed(time.Now().UnixNano())
-	time.Sleep(time.Second)
+	time.Sleep(time.Second / 2)
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
@@ -65,7 +67,8 @@ func TestMain(tm *testing.M) {
 		defer routineDel(rname)
 
 		time.Sleep(time.Second * testTimeout)
-		routinePrint()
+		backend.PrintStatus()
+		frontend.PrintStatus()
 		time.Sleep(time.Second)
 		panic("RACE case test took too long")
 	}()
@@ -200,17 +203,17 @@ func randomBytes(n int) []byte {
 }
 
 func TestGoroutineLeak(t *testing.T) {
-	time.Sleep(time.Second)
+	time.Sleep(time.Second / 2)
+	backend.PrintStatus()
+	frontend.PrintStatus()
 
 	n := runtime.NumGoroutine()
-	log.Infoln("NumGoroutine:", n)
-	routinePrint()
 	if n > 20 {
 		//t.Fail()
 		//panic("goroutine leak")
 	}
 
-	time.Sleep(time.Second)
+	time.Sleep(time.Second / 2)
 }
 
 func BenchmarkKeysOfmap(b *testing.B) {

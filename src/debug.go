@@ -3,6 +3,7 @@
 package trafcacc
 
 import (
+	"runtime"
 	"sync"
 
 	log "github.com/Sirupsen/logrus"
@@ -12,6 +13,26 @@ var (
 	routineList = make(map[string]int)
 	routineMux  = &sync.RWMutex{}
 )
+
+func (t *trafcacc) PrintStatus() {
+	s := new(runtime.MemStats)
+	runtime.ReadMemStats(s)
+	routineMux.RLock()
+	totalGoroutineTracked := 0
+	for _, v := range routineList {
+		totalGoroutineTracked += v
+	}
+
+	log.WithFields(log.Fields{
+		"NumGoroutine":     runtime.NumGoroutine(),
+		"Alloc":            s.Alloc,
+		"HeapObjects":      s.HeapObjects,
+		"TrackedGoroutine": totalGoroutineTracked,
+		"Detail":           routineList,
+	}).Infoln(t.roleString(), "status")
+
+	routineMux.RUnlock()
+}
 
 func routineAdd(name string) {
 	routineMux.Lock()
@@ -23,19 +44,6 @@ func routineDel(name string) {
 	routineMux.Lock()
 	routineList[name] = routineList[name] - 1
 	routineMux.Unlock()
-}
-
-func routinePrint() {
-	routineMux.RLock()
-	totalGoroutineTracked := 0
-	for _, v := range routineList {
-		totalGoroutineTracked += v
-	}
-	log.WithFields(log.Fields{
-		"Total":  totalGoroutineTracked,
-		"Detail": routineList,
-	}).Infoln("live goroutine list")
-	routineMux.RUnlock()
 }
 
 func keysOfmap(m map[uint32]*packet) []uint32 {
