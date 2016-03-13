@@ -36,10 +36,6 @@ func (s *serv) listen() {
 }
 
 func (s *serv) acceptTCP() {
-	const rname = "acceptTCP"
-	routineAdd(rname)
-	defer routineDel(rname)
-
 	defer s.ln.Close()
 	var tempDelay time.Duration
 	for {
