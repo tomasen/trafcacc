@@ -41,9 +41,11 @@ func (p *poolc) shouldDrop(id uint32) bool {
 func (p *poolc) add(id uint32, conn net.Conn) error {
 	p.mux.Lock()
 	defer p.mux.Unlock()
-	log.WithFields(log.Fields{
-		"connid": id,
-	}).Debugln("poolc add")
+	if log.GetLevel() >= log.DebugLevel {
+		log.WithFields(log.Fields{
+			"connid": id,
+		}).Debugln("add connection to poolc")
+	}
 	p.pool[id] = conn
 	return nil
 }
@@ -57,9 +59,11 @@ func (p *poolc) get(id uint32) net.Conn {
 func (p *poolc) del(id uint32) {
 	p.mux.Lock()
 	defer p.mux.Unlock()
-	log.WithFields(log.Fields{
-		"connid": id,
-	}).Debugln("poolc delete")
+	if log.GetLevel() >= log.DebugLevel {
+		log.WithFields(log.Fields{
+			"connid": id,
+		}).Debugln("delete connection from poolc")
+	}
 	delete(p.pool, id)
 	p.closed[id] = struct{}{}
 	if p.lastid < id {

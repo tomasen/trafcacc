@@ -23,9 +23,11 @@ func exists(queue map[uint32]*packet, seqid uint32) bool {
 
 // remove by connid from packet queue pool
 func (t *trafcacc) removeQueue(connid uint32) {
-	log.WithFields(log.Fields{
-		"connid": connid,
-	}).Debugln(t.roleString(), "remove packet queue")
+	if log.GetLevel() >= log.DebugLevel {
+		log.WithFields(log.Fields{
+			"connid": connid,
+		}).Debugln(t.roleString(), "remove packet queue")
+	}
 	t.mux.Lock()
 	defer t.mux.Unlock()
 	_, ok := t.pq[connid]
@@ -57,10 +59,11 @@ func (t *trafcacc) pushToQueue(p packet, conn net.Conn) {
 			queue: make(map[uint32]*packet),
 		}
 		t.pq[p.Connid] = pq
-		log.WithFields(log.Fields{
-			"connid": p.Connid,
-		}).Debugln(t.roleString(), "add new packet queue")
-
+		if log.GetLevel() >= log.DebugLevel {
+			log.WithFields(log.Fields{
+				"connid": p.Connid,
+			}).Debugln(t.roleString(), "add new packet queue")
+		}
 		go t.orderedWrite(pq, p.Connid, conn)
 	}
 	t.mux.Unlock()
@@ -69,14 +72,16 @@ func (t *trafcacc) pushToQueue(p packet, conn net.Conn) {
 
 	cond.L.Lock()
 	pq.queue[p.Seqid] = &p
-	log.WithFields(log.Fields{
-		"connid":    p.Connid,
-		"seqid":     p.Seqid,
-		"Cmd":       p.Cmd,
-		"lastseq":   pq.lastseq,
-		"quelength": len(pq.queue),
-		"queue":     keysOfmap(pq.queue),
-	}).Debugln(t.roleString(), "add new seq to queue")
+	if log.GetLevel() >= log.DebugLevel {
+		log.WithFields(log.Fields{
+			"connid":    p.Connid,
+			"seqid":     p.Seqid,
+			"Cmd":       p.Cmd,
+			"lastseq":   pq.lastseq,
+			"quelength": len(pq.queue),
+			"queue":     keysOfmap(pq.queue),
+		}).Debugln(t.roleString(), "add new seq to queue")
+	}
 	cond.L.Unlock()
 	cond.Signal()
 }
@@ -88,10 +93,12 @@ func (t *trafcacc) orderedWrite(pq *pktQueue, connid uint32, conn net.Conn) {
 	defer routineDel(rname)
 
 	defer func() {
-		log.WithFields(log.Fields{
-			"connid": connid,
-			"conn":   conn,
-		}).Debugln(t.roleString(), "packet queue exit")
+		if log.GetLevel() >= log.DebugLevel {
+			log.WithFields(log.Fields{
+				"connid": connid,
+				"conn":   conn,
+			}).Debugln(t.roleString(), "packet queue exit")
+		}
 		if conn != nil {
 			conn.Close()
 		}
@@ -102,24 +109,26 @@ func (t *trafcacc) orderedWrite(pq *pktQueue, connid uint32, conn net.Conn) {
 	for {
 		cond.L.Lock()
 		for !exists(pq.queue, pq.lastseq+1) {
-			log.WithFields(log.Fields{
-				"connid":    connid,
-				"waitseq":   pq.lastseq + 1,
-				"quelength": len(pq.queue),
-				"queue":     keysOfmap(pq.queue),
-			}).Debugln(t.roleString(), "wait for next seq id")
+			if log.GetLevel() >= log.DebugLevel {
+				log.WithFields(log.Fields{
+					"connid":    connid,
+					"waitseq":   pq.lastseq + 1,
+					"quelength": len(pq.queue),
+					"queue":     keysOfmap(pq.queue),
+				}).Debugln(t.roleString(), "wait for next seq id")
+			}
 			cond.Wait()
 		}
 
 		lastseq := pq.lastseq + 1
-
-		log.WithFields(log.Fields{
-			"connid":    connid,
-			"lastseq":   lastseq,
-			"queue":     keysOfmap(pq.queue),
-			"quelength": len(pq.queue),
-		}).Debugln(t.roleString(), "new seq packet is ready to write")
-
+		if log.GetLevel() >= log.DebugLevel {
+			log.WithFields(log.Fields{
+				"connid":    connid,
+				"lastseq":   lastseq,
+				"queue":     keysOfmap(pq.queue),
+				"quelength": len(pq.queue),
+			}).Debugln(t.roleString(), "new seq packet is ready to write")
+		}
 		cond.L.Unlock()
 
 		for i := lastseq; ; i++ {
@@ -130,12 +139,14 @@ func (t *trafcacc) orderedWrite(pq *pktQueue, connid uint32, conn net.Conn) {
 				break
 			} else {
 				if pkt.Buf != nil {
-					log.WithFields(log.Fields{
-						"connid": pkt.Connid,
-						"seqid":  pkt.Seqid,
-						"len":    len(pkt.Buf),
-						"zdata":  shrinkString(hex.EncodeToString(pkt.Buf)),
-					}).Debugln(t.roleString(), "orderedWrite()")
+					if log.GetLevel() >= log.DebugLevel {
+						log.WithFields(log.Fields{
+							"connid": pkt.Connid,
+							"seqid":  pkt.Seqid,
+							"len":    len(pkt.Buf),
+							"zdata":  shrinkString(hex.EncodeToString(pkt.Buf)),
+						}).Debugln(t.roleString(), "orderedWrite()")
+					}
 					if conn == nil {
 						log.Debugln(t.roleString(), "orderedWrite() connection already lost")
 						return
@@ -143,18 +154,24 @@ func (t *trafcacc) orderedWrite(pq *pktQueue, connid uint32, conn net.Conn) {
 					_, err := conn.Write(pkt.Buf)
 					if err != nil {
 						// remove when connection closed
-						log.Debugln(t.roleString(), "orderedWrite() err", err)
+						if log.GetLevel() >= log.DebugLevel {
+							log.Debugln(t.roleString(), "orderedWrite() err", err)
+						}
 						return
 					}
 				}
 				if pkt.Cmd == close {
-					log.Debugln(t.roleString(), "orderedWrite() received close command")
+					if log.GetLevel() >= log.DebugLevel {
+						log.Debugln(t.roleString(), "orderedWrite() received close command")
+					}
 					return
 				}
 				cond.L.Lock()
 				pq.lastseq = i
 				if pq.lastseq == 0 {
-					log.Debugln(t.roleString(), "orderedWrite() set lastseq=0 might be issue")
+					if log.GetLevel() >= log.DebugLevel {
+						log.Debugln(t.roleString(), "orderedWrite() set lastseq=0 might be issue")
+					}
 				}
 				delete(pq.queue, i)
 				cond.L.Unlock()

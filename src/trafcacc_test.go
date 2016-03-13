@@ -33,7 +33,7 @@ var m = make(map[uint32]*packet)
 
 func TestMain(tm *testing.M) {
 
-	// log.SetLevel(log.DebugLevel)
+	log.SetLevel(log.DebugLevel)
 
 	// start echo server
 	go servTCPEcho()

@@ -45,19 +45,21 @@ func (p packet) Copy() packet {
 // sendRaw only happens in backend to remote addr
 func (t *trafcacc) sendRaw(p packet) {
 	if t.cpool.shouldDrop(p.Connid) {
-		log.WithFields(log.Fields{
-			"connid": p.Connid,
-		}).Debugln("drop packet for a closed connection")
+		if log.GetLevel() >= log.DebugLevel {
+			log.WithFields(log.Fields{
+				"connid": p.Connid,
+			}).Debugln("drop packet for a closed connection")
+		}
 		return
 	}
-
-	log.WithFields(log.Fields{
-		"connid": p.Connid,
-		"seqid":  p.Seqid,
-		"len":    len(p.Buf),
-		"zdata":  shrinkString(hex.EncodeToString(p.Buf)),
-	}).Debugln(t.roleString(), "sendRaw() to remote addr")
-
+	if log.GetLevel() >= log.DebugLevel {
+		log.WithFields(log.Fields{
+			"connid": p.Connid,
+			"seqid":  p.Seqid,
+			"len":    len(p.Buf),
+			"zdata":  shrinkString(hex.EncodeToString(p.Buf)),
+		}).Debugln(t.roleString(), "sendRaw() to remote addr")
+	}
 	u := t.upool.next()
 
 	// TODO: optimize this lock
@@ -92,17 +94,21 @@ func (t *trafcacc) sendRaw(p packet) {
 
 // read from remote addr only happens in backend
 func (t *trafcacc) rawRead(connid uint32, conn net.Conn) {
-	log.Debugln(t.roleString(), "connected to remote begin to read")
+	if log.GetLevel() >= log.DebugLevel {
+		log.Debugln(t.roleString(), "connected to remote begin to read")
+	}
 	const rname = "rawRead"
 	routineAdd(rname)
 	defer routineDel(rname)
 
 	seqid := uint32(1)
 	defer func() {
-		log.WithFields(log.Fields{
-			"connid": connid,
-			"seqid":  seqid,
-		}).Debugln(t.roleString(), "remote connection closed")
+		if log.GetLevel() >= log.DebugLevel {
+			log.WithFields(log.Fields{
+				"connid": connid,
+				"seqid":  seqid,
+			}).Debugln(t.roleString(), "remote connection closed")
+		}
 		conn.Close()
 		t.cpool.del(connid)
 		t.replyPkt(packet{Connid: connid, Seqid: seqid, Cmd: close})
@@ -116,10 +122,12 @@ func (t *trafcacc) rawRead(connid uint32, conn net.Conn) {
 			if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
 				continue
 			}
-			log.WithFields(log.Fields{
-				"connid": connid,
-				"error":  err,
-			}).Debugln(t.roleString(), "remote connection read failed")
+			if log.GetLevel() >= log.DebugLevel {
+				log.WithFields(log.Fields{
+					"connid": connid,
+					"error":  err,
+				}).Debugln(t.roleString(), "remote connection read failed")
+			}
 			break
 		}
 		conn.SetReadDeadline(time.Time{})
@@ -143,15 +151,15 @@ func (t *trafcacc) realSendPkt(p packet) {
 
 	u.mux.Lock()
 	defer u.mux.Unlock()
-
-	log.WithFields(log.Fields{
-		"connid": p.Connid,
-		"seqid":  p.Seqid,
-		"len":    len(p.Buf),
-		"cmd":    p.Cmd,
-		"zdata":  shrinkString(hex.EncodeToString(p.Buf)),
-	}).Debugln(t.roleString(), "sendPkt()")
-
+	if log.GetLevel() >= log.DebugLevel {
+		log.WithFields(log.Fields{
+			"connid": p.Connid,
+			"seqid":  p.Seqid,
+			"len":    len(p.Buf),
+			"cmd":    p.Cmd,
+			"zdata":  shrinkString(hex.EncodeToString(p.Buf)),
+		}).Debugln(t.roleString(), "sendPkt()")
+	}
 	if u.conn == nil {
 		// dial
 		switch u.proto {
@@ -159,9 +167,11 @@ func (t *trafcacc) realSendPkt(p packet) {
 			conn, err := net.Dial("tcp", u.addr)
 			if err != nil {
 				// reply error and close connection to client
-				log.WithFields(log.Fields{
-					"connid": p.Connid,
-				}).Debugln(t.roleString(), "dial in sendpkt() failed:", err)
+				if log.GetLevel() >= log.DebugLevel {
+					log.WithFields(log.Fields{
+						"connid": p.Connid,
+					}).Debugln(t.roleString(), "dial in sendpkt() failed:", err)
+				}
 				t.replyRaw(packet{Connid: p.Connid, Cmd: close})
 				return
 			}
@@ -178,10 +188,12 @@ func (t *trafcacc) realSendPkt(p packet) {
 	err := u.encoder.Encode(&p)
 	if err != nil {
 		u.close()
-		log.WithFields(log.Fields{
-			"connid": p.Connid,
-			"error":  err,
-		}).Debugln(t.roleString(), "encode in sendpkt() failed")
+		if log.GetLevel() >= log.DebugLevel {
+			log.WithFields(log.Fields{
+				"connid": p.Connid,
+				"error":  err,
+			}).Debugln(t.roleString(), "encode in sendpkt() failed")
+		}
 		// reply error and close connection to client
 		t.replyRaw(packet{Connid: p.Connid, Cmd: close})
 		return
@@ -203,10 +215,12 @@ func (t *trafcacc) pktDecode(u *upstream) {
 		p := packet{}
 		err := dec.Decode(&p)
 		if err != nil {
-			log.WithFields(log.Fields{
-				"connid": p.Connid,
-				"error":  err,
-			}).Debugln(t.roleString(), "read packet from backend failed")
+			if log.GetLevel() >= log.DebugLevel {
+				log.WithFields(log.Fields{
+					"connid": p.Connid,
+					"error":  err,
+				}).Debugln(t.roleString(), "read packet from backend failed")
+			}
 			return
 		}
 		t.replyRaw(p)
@@ -215,23 +229,27 @@ func (t *trafcacc) pktDecode(u *upstream) {
 
 // reply Raw only happens in front-end to client
 func (t *trafcacc) replyRaw(p packet) {
-	log.WithFields(log.Fields{
-		"connid": p.Connid,
-		"seqid":  p.Seqid,
-		"cmd":    p.Cmd,
-		"len":    len(p.Buf),
-		"zdata":  shrinkString(hex.EncodeToString(p.Buf)),
-	}).Debugln(t.roleString(), "replyRaw()")
-	conn := t.cpool.get(p.Connid)
-
-	if conn == nil {
+	if log.GetLevel() >= log.DebugLevel {
 		log.WithFields(log.Fields{
 			"connid": p.Connid,
 			"seqid":  p.Seqid,
-			"len":    len(p.Buf),
 			"cmd":    p.Cmd,
+			"len":    len(p.Buf),
 			"zdata":  shrinkString(hex.EncodeToString(p.Buf)),
-		}).Debugln(t.roleString(), "reply to no-exist client conn")
+		}).Debugln(t.roleString(), "replyRaw()")
+	}
+	conn := t.cpool.get(p.Connid)
+
+	if conn == nil {
+		if log.GetLevel() >= log.DebugLevel {
+			log.WithFields(log.Fields{
+				"connid": p.Connid,
+				"seqid":  p.Seqid,
+				"len":    len(p.Buf),
+				"cmd":    p.Cmd,
+				"zdata":  shrinkString(hex.EncodeToString(p.Buf)),
+			}).Debugln(t.roleString(), "reply to no-exist client conn")
+		}
 		t.cpool.del(p.Connid)
 		// TODO: do we need send close command here?
 		// t.sendPkt(packet{Connid: p.Connid, Cmd: close})
@@ -254,13 +272,14 @@ func (t *trafcacc) replyPkt(p packet) (err error) {
 }
 
 func (t *trafcacc) realReplyPkt(p packet) error {
-	log.WithFields(log.Fields{
-		"connid": p.Connid,
-		"seqid":  p.Seqid,
-		"len":    len(p.Buf),
-		"zdata":  shrinkString(hex.EncodeToString(p.Buf)),
-	}).Debugln(t.roleString(), "replyPkt() to frontend")
-
+	if log.GetLevel() >= log.DebugLevel {
+		log.WithFields(log.Fields{
+			"connid": p.Connid,
+			"seqid":  p.Seqid,
+			"len":    len(p.Buf),
+			"zdata":  shrinkString(hex.EncodeToString(p.Buf)),
+		}).Debugln(t.roleString(), "replyPkt() to frontend")
+	}
 	conn := t.epool.next()
 	if conn != nil {
 		return conn.Encode(p)

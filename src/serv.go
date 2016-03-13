@@ -27,7 +27,9 @@ func (s *serv) listen() {
 			log.Fatal("net.Listen error", s.addr, err)
 		}
 
-		log.Debugln("listen to", s.addr)
+		if log.GetLevel() >= log.DebugLevel {
+			log.Debugln("listen to", s.addr)
+		}
 		s.ln = ln
 		go s.acceptTCP()
 	case "udp":
@@ -85,7 +87,9 @@ func (s *serv) packetHandler(conn net.Conn) {
 		p := packet{}
 		err := dec.Decode(&p)
 		if err != nil {
-			log.Debugln("packetHandler() err:", err)
+			if log.GetLevel() >= log.DebugLevel {
+				log.Debugln("packetHandler() err:", err)
+			}
 			// TODO: just close or do some thing other?
 			break
 		}
@@ -110,9 +114,11 @@ func (s *serv) rawHandler(conn net.Conn) {
 
 	defer func() {
 		s.sendPkt(packet{Connid: connid, Seqid: seqid + 1, Cmd: close})
-		log.WithFields(log.Fields{
-			"connid": connid,
-		}).Debugln(s.roleString(), "rawHandler() exit")
+		if log.GetLevel() >= log.DebugLevel {
+			log.WithFields(log.Fields{
+				"connid": connid,
+			}).Debugln(s.roleString(), "rawHandler() exit")
+		}
 		s.cpool.del(connid)
 	}()
 
@@ -122,7 +128,9 @@ func (s *serv) rawHandler(conn net.Conn) {
 		n, err := conn.Read(buf)
 		if err != nil {
 			if err != io.EOF {
-				log.Debugln(s.roleString(), "read from client error:", err)
+				if log.GetLevel() >= log.DebugLevel {
+					log.Debugln(s.roleString(), "read from client error:", err)
+				}
 			}
 			break
 		} else {
