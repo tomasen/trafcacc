@@ -37,8 +37,8 @@ type trafcacc struct {
 
 // Accelerate traffic by setup listening port and upstream
 func Accelerate(l, u string, role tag) {
-	incMaxopenfile()
-	incGomaxprocs()
+	increaseMaxopenfile()
+	increaseGomaxprocs()
 
 	t := &trafcacc{}
 	t.cpool = newPoolc()

@@ -24,32 +24,7 @@ func dialTimeout(network, address string, timeout time.Duration) (conn net.Conn,
 	return
 }
 
-func keysOfmap(m map[uint32]*packet) []uint32 {
-	rlen := len(m)
-	if rlen > 15 {
-		rlen = 15
-	}
-	r := make([]uint32, rlen)
-	i := 0
-	for k := range m {
-		r[i] = k
-		i++
-		if i >= rlen {
-			break
-		}
-	}
-	return r
-}
-
-func shrinkString(s string) string {
-	l := len(s)
-	if l > 30 {
-		return s[:15] + "..." + s[l-15:l]
-	}
-	return s
-}
-
-func incMaxopenfile() {
+func increaseMaxopenfile() {
 
 	var lim syscall.Rlimit
 	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &lim); err != nil {
@@ -70,7 +45,7 @@ func incMaxopenfile() {
 	}
 }
 
-func incGomaxprocs() {
+func increaseGomaxprocs() {
 	cpu := runtime.NumCPU()
 	if cpu > runtime.GOMAXPROCS(-1) {
 		runtime.GOMAXPROCS(cpu)

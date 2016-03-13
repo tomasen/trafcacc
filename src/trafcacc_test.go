@@ -204,8 +204,8 @@ func TestGoroutineLeak(t *testing.T) {
 
 	n := runtime.NumGoroutine()
 	log.Infoln("NumGoroutine:", n)
-	if n > 30 {
-		routinePrint()
+	routinePrint()
+	if n > 20 {
 		//t.Fail()
 		//panic("goroutine leak")
 	}
