@@ -34,7 +34,7 @@ type trafcacc struct {
 
 	// packet queue
 	mux sync.RWMutex
-	pq  map[uint32]*pktQueue
+	pq  poolq
 }
 
 // Accelerate traffic by setup listening port and upstream

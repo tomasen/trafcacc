@@ -10,6 +10,8 @@ import (
 	log "github.com/Sirupsen/logrus"
 )
 
+type poolq map[uint32]*pktQueue
+
 type pktQueue struct {
 	lastseq uint32
 	cond    *sync.Cond
@@ -71,19 +73,21 @@ func (t *trafcacc) pushToQueue(p packet, conn net.Conn) {
 	cond := pq.cond
 
 	cond.L.Lock()
-	pq.queue[p.Seqid] = &p
-	if log.GetLevel() >= log.DebugLevel {
-		log.WithFields(log.Fields{
-			"connid":    p.Connid,
-			"seqid":     p.Seqid,
-			"Cmd":       p.Cmd,
-			"lastseq":   pq.lastseq,
-			"quelength": len(pq.queue),
-			"queue":     keysOfmap(pq.queue),
-		}).Debugln(t.roleString(), "add new seq to queue")
-	}
+	if p.Seqid > pq.lastseq {
+		pq.queue[p.Seqid] = &p
+		if log.GetLevel() >= log.DebugLevel {
+			log.WithFields(log.Fields{
+				"connid":    p.Connid,
+				"seqid":     p.Seqid,
+				"Cmd":       p.Cmd,
+				"lastseq":   pq.lastseq,
+				"quelength": len(pq.queue),
+				"queue":     keysOfmap(pq.queue),
+			}).Debugln(t.roleString(), "add new seq to queue")
+		}
+	} // otherwise ignore(drop) duplicated packet
 	cond.L.Unlock()
-	cond.Signal()
+	cond.Broadcast()
 }
 
 // ensure write order for this connid
