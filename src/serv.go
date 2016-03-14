@@ -94,7 +94,7 @@ func (s *serv) packetHandler(conn net.Conn) {
 			if log.GetLevel() >= log.DebugLevel {
 				log.Debugln("packetHandler() err:", err)
 			}
-			// TODO: just close or do some thing other?
+			// just close it, and epool will wait for new connections
 			break
 		}
 		s.sendRaw(p)

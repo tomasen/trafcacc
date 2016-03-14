@@ -287,9 +287,6 @@ func (t *trafcacc) realReplyPkt(p packet) error {
 			"zdata":  shrinkString(hex.EncodeToString(p.Buf)),
 		}).Debugln(t.roleString(), "replyPkt() to frontend")
 	}
-	conn := t.epool.next()
-	if conn != nil {
-		return conn.Encode(p)
-	}
-	return errors.New("connection not exist anymore")
+	enc := t.epool.next()
+	return enc.Encode(p)
 }

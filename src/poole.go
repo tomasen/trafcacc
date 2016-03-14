@@ -5,6 +5,8 @@ package trafcacc
 import (
 	"encoding/gob"
 	"sync"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 // poole holds connections from frontend for backend
