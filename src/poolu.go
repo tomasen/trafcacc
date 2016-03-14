@@ -3,16 +3,16 @@
 package trafcacc
 
 import (
+	"math/rand"
 	"sync"
-	"sync/atomic"
 )
 
 // poole holds connections for frontend to backend
 type poolu struct {
 	mux sync.RWMutex
 	pl  []*upstream
-	id  int32
-	end int32
+	id  uint32
+	end uint32
 }
 
 func (p *poolu) append(u *upstream) {
@@ -25,6 +25,6 @@ func (p *poolu) append(u *upstream) {
 func (p *poolu) next() *upstream {
 	p.mux.RLock()
 	defer p.mux.RUnlock()
-	id := atomic.AddInt32(&p.id, 1)
-	return p.pl[id%p.end]
+	p.id += uint32(rand.Intn(int(p.end)))
+	return p.pl[p.id%p.end]
 }
