@@ -4,7 +4,6 @@ package trafcacc
 
 import (
 	"encoding/gob"
-	"io"
 	"net"
 	"sync/atomic"
 	"time"
@@ -82,17 +81,24 @@ func (s *serv) packetHandler(conn net.Conn) {
 		conn.Close()
 	}()
 
+	if log.GetLevel() >= log.DebugLevel {
+		log.WithFields(log.Fields{
+			"local":  conn.LocalAddr(),
+			"remote": conn.RemoteAddr(),
+		}).Debugln("begin packetHandler() from front-end")
+	}
+
 	for {
 		// TODO: avoid endless waiting? without break the data packet
 		// conn.SetReadDeadline(time.Now().Add(time.Second * decodetimeout))
 		p := packet{}
 		err := dec.Decode(&p)
 		if err != nil {
-			if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
-				continue
-			}
 			if log.GetLevel() >= log.DebugLevel {
 				log.Debugln("packetHandler() err:", err)
+			}
+			if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
+				continue
 			}
 			// just close it, and epool will wait for new connections
 			break
@@ -132,13 +138,11 @@ func (s *serv) rawHandler(conn net.Conn) {
 		conn.SetReadDeadline(time.Now().Add(time.Second))
 		n, err := conn.Read(buf)
 		if err != nil {
+			if log.GetLevel() >= log.DebugLevel {
+				log.Debugln(s.roleString(), "read from client error:", err)
+			}
 			if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
 				continue
-			}
-			if err != io.EOF {
-				if log.GetLevel() >= log.DebugLevel {
-					log.Debugln(s.roleString(), "read from client error:", err)
-				}
 			}
 			break
 		} else {

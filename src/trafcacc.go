@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	buffersize    = 4096 * 2
+	buffersize    = 4096 * 30
 	decodetimeout = 10
 	dialtimeout   = 15
 	readtimeout   = 30

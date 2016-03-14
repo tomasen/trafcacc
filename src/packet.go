@@ -94,12 +94,12 @@ func (t *trafcacc) sendRaw(p packet) {
 
 // read from remote addr only happens in backend
 func (t *trafcacc) rawRead(connid uint32, conn net.Conn) {
-	if log.GetLevel() >= log.DebugLevel {
-		log.Debugln(t.roleString(), "connected to remote begin to read")
-	}
 	const rname = "rawRead"
 	routineAdd(rname)
 	defer routineDel(rname)
+	if log.GetLevel() >= log.DebugLevel {
+		log.Debugln(t.roleString(), "connected to remote begin to read")
+	}
 
 	seqid := uint32(1)
 	defer func() {
@@ -119,20 +119,27 @@ func (t *trafcacc) rawRead(connid uint32, conn net.Conn) {
 		conn.SetReadDeadline(time.Now().Add(time.Second * readtimeout))
 		n, err := conn.Read(b)
 		if err != nil {
-			if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
-				continue
-			}
 			if log.GetLevel() >= log.DebugLevel {
 				log.WithFields(log.Fields{
 					"connid": connid,
 					"error":  err,
 				}).Debugln(t.roleString(), "remote connection read failed")
 			}
+			if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
+				continue
+			}
 			break
 		}
 		conn.SetReadDeadline(time.Time{})
 		err = t.replyPkt(packet{Connid: connid, Seqid: seqid, Buf: b[0:n]})
 		if err != nil {
+			if log.GetLevel() >= log.DebugLevel {
+				log.WithFields(log.Fields{
+					"connid": connid,
+					"error":  err,
+				}).Debugln(t.roleString(), "replyPkt failed")
+			}
+
 			break
 		}
 		seqid++
@@ -267,11 +274,12 @@ func (t *trafcacc) replyPkt(p packet) (err error) {
 	e0 := t.realReplyPkt(p)
 	e1 := t.realReplyPkt(p)
 	if e0 != nil && e1 != nil {
-		log.WithFields(log.Fields{
-			"err0": e0,
-			"err1": e1,
-		}).Debugln(t.roleString(), "realReplyPkt() to frontend failed")
-
+		if log.GetLevel() >= log.DebugLevel {
+			log.WithFields(log.Fields{
+				"err0": e0,
+				"err1": e1,
+			}).Debugln(t.roleString(), "realReplyPkt() to frontend failed")
+		}
 		return errors.New("reply packet failed")
 	}
 
