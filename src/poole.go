@@ -4,8 +4,9 @@ package trafcacc
 
 import (
 	"encoding/gob"
+	"math/rand"
 	"sync"
-
+	
 	log "github.com/Sirupsen/logrus"
 )
 
@@ -36,7 +37,7 @@ func (p *poole) next() *gob.Encoder {
 		p.cond.Wait()
 	}
 	defer p.cond.L.Unlock()
-	p.id++
+	p.id += uint32(rand.Intn(int(p.end)))
 	return p.pl[p.id%len(p.pl)]
 }
 
