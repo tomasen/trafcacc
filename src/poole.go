@@ -6,7 +6,7 @@ import (
 	"encoding/gob"
 	"math/rand"
 	"sync"
-	
+
 	log "github.com/Sirupsen/logrus"
 )
 
@@ -37,8 +37,9 @@ func (p *poole) next() *gob.Encoder {
 		p.cond.Wait()
 	}
 	defer p.cond.L.Unlock()
-	p.id += uint32(rand.Intn(int(p.end)))
-	return p.pl[p.id%len(p.pl)]
+	plen := len(p.pl)
+	p.id += rand.Intn(plen)
+	return p.pl[uint(p.id%plen)]
 }
 
 func (p *poole) remove(c *gob.Encoder) {
