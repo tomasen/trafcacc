@@ -152,21 +152,30 @@ func (t *trafcacc) orderedWrite(pq *pktQueue, connid uint32, conn net.Conn) {
 						}).Debugln(t.roleString(), "orderedWrite()")
 					}
 					if conn == nil {
-						log.Debugln(t.roleString(), "orderedWrite() connection already lost")
+						log.WithFields(log.Fields{
+							"connid": pkt.Connid,
+							"seqid":  pkt.Seqid,
+						}).Debugln(t.roleString(), "orderedWrite() connection already lost")
 						return
 					}
 					_, err := conn.Write(pkt.Buf)
 					if err != nil {
 						// remove when connection closed
 						if log.GetLevel() >= log.DebugLevel {
-							log.Debugln(t.roleString(), "orderedWrite() err", err)
+							log.WithFields(log.Fields{
+								"connid": pkt.Connid,
+								"seqid":  pkt.Seqid,
+							}).Debugln(t.roleString(), "orderedWrite() err", err)
 						}
 						return
 					}
 				}
 				if pkt.Cmd == close {
 					if log.GetLevel() >= log.DebugLevel {
-						log.Debugln(t.roleString(), "orderedWrite() received close command")
+						log.WithFields(log.Fields{
+							"connid": pkt.Connid,
+							"seqid":  pkt.Seqid,
+						}).Debugln(t.roleString(), "orderedWrite() received close command")
 					}
 					return
 				}
