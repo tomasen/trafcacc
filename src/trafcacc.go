@@ -15,6 +15,7 @@ const (
 	buffersize    = 4096 * 2
 	decodetimeout = 10
 	dialtimeout   = 15
+	readtimeout   = 30
 )
 
 // tag is type of role: BACKEND or FRONTEND

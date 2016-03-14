@@ -116,7 +116,7 @@ func (t *trafcacc) rawRead(connid uint32, conn net.Conn) {
 	b := make([]byte, buffersize)
 	for {
 		// break this loop when conn is closed
-		conn.SetReadDeadline(time.Now().Add(time.Second))
+		conn.SetReadDeadline(time.Now().Add(time.Second * readtimeout))
 		n, err := conn.Read(b)
 		if err != nil {
 			if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
