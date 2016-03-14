@@ -26,11 +26,20 @@ func main() {
 	role := flag.String("role", "frontend", "work as backend or frontend")
 	loglevel := flag.Bool("v", false, "set log level to debug")
 	pprof := flag.String("pprof", "", "pprof listen to")
+	logfile := flag.String("log", "", "output log to file")
 
 	flag.Parse()
 
 	if *loglevel {
 		log.SetLevel(log.DebugLevel)
+	}
+
+	if len(*logfile) != 0 {
+		f, err := os.OpenFile(*logfile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0755)
+		if err != nil {
+			log.Infoln("log file open failed", err)
+		}
+		log.SetOutput(f)
 	}
 
 	var t trafcacc.Trafcacc

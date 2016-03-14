@@ -49,7 +49,7 @@ func Accelerate(l, u string, role tag) Trafcacc {
 	t := &trafcacc{}
 	t.cpool = newPoolc()
 	t.upool = &poolu{}
-	t.epool = &poole{}
+	t.epool = newPoole()
 	t.pq = make(map[uint32]*pktQueue)
 	t.serverid = rand.Uint32()
 	// make sure this only run once pre-instance

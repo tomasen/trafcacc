@@ -9,7 +9,7 @@ import (
 
 // poole holds connections for frontend to backend
 type poolu struct {
-	mux sync.RWMutex
+	mux sync.Mutex
 	pl  []*upstream
 	id  uint32
 	end uint32
@@ -23,8 +23,8 @@ func (p *poolu) append(u *upstream) {
 }
 
 func (p *poolu) next() *upstream {
-	p.mux.RLock()
-	defer p.mux.RUnlock()
+	p.mux.Lock()
+	defer p.mux.Unlock()
 	p.id += uint32(rand.Intn(int(p.end)))
 	return p.pl[p.id%p.end]
 }

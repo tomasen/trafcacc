@@ -264,13 +264,15 @@ func (t *trafcacc) replyRaw(p packet) {
 
 // reply Packet only happens in backend to frontend
 func (t *trafcacc) replyPkt(p packet) (err error) {
-	err = t.realReplyPkt(p)
-	if err != nil {
-		return err
-	}
-	err = t.realReplyPkt(p)
-	if err != nil {
-		return err
+	e0 := t.realReplyPkt(p)
+	e1 := t.realReplyPkt(p)
+	if e0 != nil && e1 != nil {
+		log.WithFields(log.Fields{
+			"err0": e0,
+			"err1": e1,
+		}).Debugln(t.roleString(), "realReplyPkt() to frontend failed")
+
+		return errors.New("reply packet failed")
 	}
 
 	return nil
