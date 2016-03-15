@@ -110,8 +110,10 @@ func (t *trafcacc) rawRead(connid uint32, conn net.Conn) {
 			}).Debugln(t.roleString(), "remote connection closed")
 		}
 		conn.Close()
+		conn = nil
 		t.cpool.del(connid)
 		t.replyPkt(packet{Connid: connid, Seqid: seqid, Cmd: close})
+		t.removeQueue(connid)
 	}()
 	b := make([]byte, buffersize)
 	for {

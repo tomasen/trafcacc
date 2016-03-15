@@ -32,8 +32,9 @@ func (t *trafcacc) removeQueue(connid uint32) {
 	}
 	t.mux.Lock()
 	defer t.mux.Unlock()
-	_, ok := t.pq[connid]
+	q, ok := t.pq[connid]
 	if ok {
+		q.cond.Broadcast()
 		delete(t.pq, connid)
 	}
 }
@@ -105,6 +106,7 @@ func (t *trafcacc) orderedWrite(pq *pktQueue, connid uint32, conn net.Conn) {
 		}
 		if conn != nil {
 			conn.Close()
+			conn = nil
 		}
 		t.removeQueue(connid)
 	}()
@@ -112,7 +114,7 @@ func (t *trafcacc) orderedWrite(pq *pktQueue, connid uint32, conn net.Conn) {
 	cond := pq.cond
 	for {
 		cond.L.Lock()
-		for !exists(pq.queue, pq.lastseq+1) {
+		for conn != nil && !exists(pq.queue, pq.lastseq+1) {
 			if log.GetLevel() >= log.DebugLevel {
 				log.WithFields(log.Fields{
 					"connid":    connid,
@@ -142,6 +144,13 @@ func (t *trafcacc) orderedWrite(pq *pktQueue, connid uint32, conn net.Conn) {
 			if !ok {
 				break
 			} else {
+				if conn == nil {
+					log.WithFields(log.Fields{
+						"connid": pkt.Connid,
+						"seqid":  pkt.Seqid,
+					}).Debugln(t.roleString(), "orderedWrite() connection already lost")
+					return
+				}
 				if pkt.Buf != nil {
 					if log.GetLevel() >= log.DebugLevel {
 						log.WithFields(log.Fields{
@@ -150,13 +159,6 @@ func (t *trafcacc) orderedWrite(pq *pktQueue, connid uint32, conn net.Conn) {
 							"len":    len(pkt.Buf),
 							"zdata":  shrinkString(hex.EncodeToString(pkt.Buf)),
 						}).Debugln(t.roleString(), "orderedWrite()")
-					}
-					if conn == nil {
-						log.WithFields(log.Fields{
-							"connid": pkt.Connid,
-							"seqid":  pkt.Seqid,
-						}).Debugln(t.roleString(), "orderedWrite() connection already lost")
-						return
 					}
 					_, err := conn.Write(pkt.Buf)
 					if err != nil {

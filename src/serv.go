@@ -130,6 +130,8 @@ func (s *serv) rawHandler(conn net.Conn) {
 			}).Debugln(s.roleString(), "rawHandler() exit")
 		}
 		s.cpool.del(connid)
+		conn = nil
+		s.removeQueue(connid)
 	}()
 
 	buf := make([]byte, buffersize)
