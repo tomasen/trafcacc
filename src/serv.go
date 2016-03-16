@@ -123,7 +123,7 @@ func (s *serv) rawHandler(conn net.Conn) {
 	s.sendPkt(packet{Connid: connid, Seqid: seqid, Cmd: connect})
 
 	defer func() {
-		s.sendPkt(packet{Connid: connid, Seqid: seqid + 1, Cmd: close})
+		// s.sendPkt(packet{Connid: connid, Seqid: seqid + 1, Cmd: close})
 		if log.GetLevel() >= log.DebugLevel {
 			log.WithFields(log.Fields{
 				"connid": connid,

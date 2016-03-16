@@ -107,6 +107,7 @@ func (t *trafcacc) orderedWrite(pq *pktQueue, connid uint32, conn net.Conn) {
 		if conn != nil {
 			conn.Close()
 			conn = nil
+			// TODO: send/or reply packet close command
 		}
 		t.removeQueue(connid)
 	}()
@@ -122,6 +123,16 @@ func (t *trafcacc) orderedWrite(pq *pktQueue, connid uint32, conn net.Conn) {
 					"quelength": len(pq.queue),
 					"queue":     keysOfmap(pq.queue),
 				}).Debugln(t.roleString(), "wait for next seq id")
+			}
+			if len(pq.queue) > 300 {
+				log.WithFields(log.Fields{
+					"connid":    connid,
+					"waitseq":   pq.lastseq + 1,
+					"quelength": len(pq.queue),
+					"queue":     keysOfmap(pq.queue),
+				}).Debugln(t.roleString(), "close connection since the packet queue is way to long")
+				cond.L.Unlock()
+				return
 			}
 			cond.Wait()
 		}

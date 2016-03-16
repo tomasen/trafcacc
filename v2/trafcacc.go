@@ -1,4 +1,4 @@
-// trafcacc.go 启动 traffic accelerate proxy
+// trafcacc.go traffic accelerate proxy exported functions
 
 package trafcacc
 
@@ -14,20 +14,29 @@ const (
 	readtimeout = 30
 )
 
-// DialTimeout acts like net.Dial but take trafcacc addresses that backend listen to.
-func DialTimeout(backend string, timeout time.Duration) net.Conn {
-	// TODO: dial as front-end
-	return nil
+func Dial(backend string) (net.Conn, error) {
+	D := &Dialer{}
+	return D.Dial(backend)
+}
+
+// DialTimeout acts like net.DialTimeout but take trafcacc addresses that backend listen to.
+func DialTimeout(backend string, timeout time.Duration) (net.Conn, error) {
+	D := &Dialer{Timeout: timeout}
+	return D.Dial(backend)
 }
 
 // HandleFunc registers the handler for the given addresses
 // that back-end server listened to
 func HandleFunc(listento string, handler func(net.Conn)) {
-	// TODO: handle as backend
+	DefaultServeMux.Handle(listento, HandlerFunc(handler))
+}
+
+// Handle registers the handler for the given addresses
+func Handle(listento string, handler Handler) {
+	DefaultServeMux.Handle(listento, handler)
 }
 
 // Accelerate traffic by setup front-end dialer and back-end server
-// TODO: maybe not put this inside package
 func Accelerate(l, u string, role tag) Trafcacc {
 
 	t := &trafcacc{role: role}

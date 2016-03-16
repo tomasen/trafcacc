@@ -18,16 +18,16 @@ type Trafcacc interface {
 	Status()
 }
 
-// Accelerate traffic start by flag strings
+// Accelerate traffic by listen to l, and connect to u
 func (t *trafcacc) accelerate(l, u string) {
 
 	switch t.role {
 	case BACKEND:
-		// TODO: listen to l-s
+		// TODO: setup trafcacc.Server to listen to and HandleFunc from l
 		// connect to upstream
 	case FRONTEND:
 		// TODO: listen to l
-		// use Dialer to init connection
+		// use trafcacc.Dialer to init connection to u
 	}
 
 }
