@@ -4,13 +4,21 @@ import (
 	"encoding/gob"
 	"net"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/Sirupsen/logrus"
 )
 
+// Dialer is
 type Dialer struct {
 	pool []*upstream
+	cond *sync.Cond
+}
+
+// NewDialer set
+func NewDialer() *Dialer {
+	return &Dialer{cond: sync.NewCond(&sync.Mutex{})}
 }
 
 // Dial acts like net.Dial
@@ -18,7 +26,7 @@ func (d *Dialer) Dial() (net.Conn, error) {
 	return d.DialTimeout(time.Duration(0))
 }
 
-// Timeout is the maximum amount of time a dial will wait for
+// DialTimeout is the maximum amount of time a dial will wait for
 // a connect to complete. If Deadline is also set, it may fail
 // earlier.
 //
@@ -27,9 +35,20 @@ func (d *Dialer) Dial() (net.Conn, error) {
 func (d *Dialer) DialTimeout(timeout time.Duration) (net.Conn, error) {
 	// TODO: wait for upstream online
 	conn := &conn{}
+
+	ch := make(chan struct{}, 1)
+	go func() {
+
+	}()
+
+	select {
+	case <-ch:
+	case <-time.After(timeout):
+	}
 	return conn, nil
 }
 
+// Setup upstream servers
 func (d *Dialer) Setup(server string) {
 	for _, e := range parse(server) {
 		for p := e.portBegin; p <= e.portEnd; p++ {
@@ -95,4 +114,14 @@ func (d *Dialer) connect(u *upstream) {
 
 func (d *Dialer) push(p *packet) {
 	// TODO:
+}
+
+//
+func (d *Dialer) alive() bool {
+	for _, v := range d.pool {
+		if v.conn != nil {
+			return true
+		}
+	}
+	return false
 }
