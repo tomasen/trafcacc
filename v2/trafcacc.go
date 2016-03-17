@@ -2,7 +2,10 @@
 
 package trafcacc
 
-import "net"
+import (
+	"net"
+	"time"
+)
 
 //log "github.com/Sirupsen/logrus"
 
@@ -11,6 +14,13 @@ const (
 	dialtimeout = 15
 	readtimeout = 30
 )
+
+// Dialer TODO: comment
+type Dialer interface {
+	Setup(server string)
+	Dial() (net.Conn, error)
+	DialTimeout(timeout time.Duration) (net.Conn, error)
+}
 
 // Handle registers the handler for the given addresses
 func Handle(listento string, handler Handler) {

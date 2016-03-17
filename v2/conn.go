@@ -6,7 +6,7 @@ import (
 )
 
 type conn struct {
-	*Dialer
+	*dialer
 	connid uint32
 }
 

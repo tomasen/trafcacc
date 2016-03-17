@@ -12,8 +12,7 @@ import (
 	"github.com/Sirupsen/logrus"
 )
 
-// Dialer is TODO: comment
-type Dialer struct {
+type dialer struct {
 	keepalive time.Duration
 
 	pool []*upstream
@@ -23,14 +22,15 @@ type Dialer struct {
 }
 
 // NewDialer TODO: comment
-func NewDialer() *Dialer {
-	return &Dialer{cond: sync.NewCond(&sync.Mutex{}),
+func NewDialer() Dialer {
+	return &dialer{
+		cond:      sync.NewCond(&sync.Mutex{}),
 		keepalive: time.Second * 3,
 	}
 }
 
 // Dial acts like net.Dial
-func (d *Dialer) Dial() (net.Conn, error) {
+func (d *dialer) Dial() (net.Conn, error) {
 	return d.DialTimeout(time.Duration(0))
 }
 
@@ -40,7 +40,7 @@ func (d *Dialer) Dial() (net.Conn, error) {
 //
 // The default is 0 means no timeout.
 //
-func (d *Dialer) DialTimeout(timeout time.Duration) (net.Conn, error) {
+func (d *dialer) DialTimeout(timeout time.Duration) (net.Conn, error) {
 	// wait for upstream online and alive
 	ch := make(chan struct{}, 1)
 	go func() {
@@ -53,15 +53,18 @@ func (d *Dialer) DialTimeout(timeout time.Duration) (net.Conn, error) {
 		// TODO: send connect cmd and wait for connected cmd
 		ch <- struct{}{}
 	}()
-
-	select {
-	case <-ch:
-	case <-time.After(timeout):
-		return nil, errors.New("i/o timeout")
+	if timeout == time.Duration(0) {
+		<-ch
+	} else {
+		select {
+		case <-ch:
+		case <-time.After(timeout):
+			return nil, errors.New("i/o timeout")
+		}
 	}
 
 	conn := &conn{
-		Dialer: d,
+		dialer: d,
 		connid: atomic.AddUint32(&d.atomicid, 1),
 	}
 
@@ -73,12 +76,12 @@ func (d *Dialer) DialTimeout(timeout time.Duration) (net.Conn, error) {
 	return conn, nil
 }
 
-func (d *Dialer) write(p *packet) {
+func (d *dialer) write(p *packet) {
 	// TODO: pick one upstream tunnel and send packet
 }
 
 // Setup upstream servers
-func (d *Dialer) Setup(server string) {
+func (d *dialer) Setup(server string) {
 	for _, e := range parse(server) {
 		for p := e.portBegin; p <= e.portEnd; p++ {
 			u := upstream{proto: e.proto, addr: net.JoinHostPort(e.host, strconv.Itoa(p))}
@@ -92,7 +95,7 @@ func (d *Dialer) Setup(server string) {
 }
 
 // connect to upstream server and keep tunnel alive
-func (d *Dialer) connect(u *upstream) {
+func (d *dialer) connect(u *upstream) {
 	for {
 		switch u.proto {
 		case "tcp":
@@ -153,12 +156,12 @@ func (d *Dialer) connect(u *upstream) {
 }
 
 // push packet to packet queue
-func (d *Dialer) push(p *packet) {
+func (d *dialer) push(p *packet) {
 	// TODO:
 }
 
 // check if there is any alive upstream
-func (d *Dialer) check() (alive bool) {
+func (d *dialer) check() (alive bool) {
 	for _, v := range d.pool {
 		if v.proto == "udp" {
 			return true
