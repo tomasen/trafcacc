@@ -6,6 +6,8 @@ import (
 )
 
 type conn struct {
+	*Dialer
+	connid uint32
 }
 
 // Read reads data from the connection.

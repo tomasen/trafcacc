@@ -6,6 +6,7 @@ const (
 	data cmd = iota
 	close
 	connect
+	connected
 	ping
 	pong
 )

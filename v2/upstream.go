@@ -3,6 +3,7 @@ package trafcacc
 import (
 	"encoding/gob"
 	"net"
+	"time"
 
 	"github.com/Sirupsen/logrus"
 )
@@ -14,6 +15,8 @@ type upstream struct {
 	conn    net.Conn
 	encoder *gob.Encoder
 	decoder *gob.Decoder
+
+	alive time.Time
 	// mux     sync.RWMutex
 }
 
