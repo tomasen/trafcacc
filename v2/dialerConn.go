@@ -2,6 +2,7 @@ package trafcacc
 
 import (
 	"net"
+	"sync/atomic"
 	"time"
 )
 
@@ -9,6 +10,7 @@ import (
 type dialerConn struct {
 	*dialer
 	connid uint32
+	seqid  uint32
 }
 
 // Read reads data from the connection.
@@ -24,7 +26,11 @@ func (c *dialerConn) Read(b []byte) (n int, err error) {
 // after a fixed time limit; see SetDeadline and SetWriteDeadline.
 func (c *dialerConn) Write(b []byte) (n int, err error) {
 	// TODO:
-	return
+	return len(b), c.write(&packet{
+		Seqid:  atomic.AddUint32(&c.seqid, 1),
+		Connid: c.connid,
+		Buf:    b,
+	})
 }
 
 // Close closes the connection.

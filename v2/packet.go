@@ -12,7 +12,7 @@ const (
 )
 
 type packet struct {
-	Serverid uint32
+	Senderid uint32
 	Connid   uint32
 	Seqid    uint32
 	Buf      []byte

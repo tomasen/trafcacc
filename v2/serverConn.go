@@ -8,6 +8,8 @@ import (
 // client side conn
 type serverConn struct {
 	*ServeMux
+	senderid uint32
+	connid   uint32
 }
 
 // Read reads data from the connection.

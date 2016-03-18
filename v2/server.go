@@ -9,10 +9,16 @@ import (
 	"github.com/Sirupsen/logrus"
 )
 
+type packetQueue map[uint32]map[uint32]map[uint32]*packet
+type closedQueue map[uint32]map[uint32]struct{}
+
 // ServeMux TODO: comment
 type ServeMux struct {
 	// contains filtered or unexported fields
 	handler Handler
+
+	packetQueue packetQueue
+	closedQueue closedQueue
 }
 
 // Handler TODO: comment
@@ -30,7 +36,7 @@ func (f HandlerFunc) Serve(c net.Conn) {
 
 // NewServeMux allocates and returns a new ServeMux.
 func NewServeMux() *ServeMux {
-	return &ServeMux{}
+	return &ServeMux{packetQueue: make(packetQueue)}
 }
 
 // DefaultServeMux TODO: comment
@@ -45,12 +51,18 @@ func (mux *ServeMux) HandleFunc(listento string, handler func(net.Conn)) {
 // Handle registers the handler for the given addresses
 func (mux *ServeMux) Handle(listento string, handler Handler) {
 	// TODO: handle as backend
+	mux.handler = handler
 	for _, e := range parse(listento) {
 		for p := e.portBegin; p <= e.portEnd; p++ {
 			s := serv{ServeMux: mux, proto: e.proto, addr: net.JoinHostPort(e.host, strconv.Itoa(p))}
 			s.listen()
 		}
 	}
+}
+
+func (mux *ServeMux) write(*packet) error {
+	// TODO
+	return nil
 }
 
 type serv struct {
@@ -118,10 +130,10 @@ func (s *serv) packetHandler(conn net.Conn) {
 			if logrus.GetLevel() >= logrus.WarnLevel {
 				logrus.Warnln("packetHandler() Decode err:", err)
 			}
-			// just close it
 			break
 		}
-		if p.Cmd == ping {
+		switch p.Cmd {
+		case ping:
 			// reply ping
 			err := enc.Encode(&packet{Cmd: pong})
 			if err != nil {
@@ -130,15 +142,41 @@ func (s *serv) packetHandler(conn net.Conn) {
 				}).Warnln("sever pong error")
 			}
 			continue
-		}
-		//
-		// if it's new connid
-		// s.handler.Serve(&serverConn{})
 
-		s.push(&p)
+		default:
+			s.push(&p)
+		}
+
 	}
 }
 
 func (s *serv) push(p *packet) {
+	switch p.Cmd {
 
+	case connect:
+		if _, ok := s.packetQueue[p.Senderid][p.Connid]; !ok {
+			delete(s.closedQueue[p.Senderid], p.Connid)
+
+			// it's new conn
+			p.Cmd = connected
+			s.write(p)
+
+			s.handler.Serve(&serverConn{
+				ServeMux: s.ServeMux,
+				senderid: p.Senderid,
+				connid:   p.Connid,
+			})
+		}
+
+	case close:
+		delete(s.packetQueue[p.Senderid], p.Connid)
+		s.closedQueue[p.Senderid][p.Connid] = struct{}{}
+
+	default: //data
+		if _, ok := s.closedQueue[p.Senderid][p.Connid]; !ok {
+			if _, ok := s.packetQueue[p.Senderid][p.Connid][p.Seqid]; !ok {
+				s.packetQueue[p.Senderid][p.Connid][p.Seqid] = p
+			} // else drop duplicated packet
+		} // else drop closed packet
+	}
 }

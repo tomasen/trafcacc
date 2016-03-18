@@ -3,6 +3,7 @@ package trafcacc
 import (
 	"encoding/gob"
 	"errors"
+	"math/rand"
 	"net"
 	"strconv"
 	"sync"
@@ -18,7 +19,11 @@ type dialer struct {
 	pool []*upstream
 	cond *sync.Cond
 
+	identity uint32
 	atomicid uint32
+
+	packetQueue packetQueue
+	closedQueue closedQueue
 }
 
 // NewDialer TODO: comment
@@ -26,6 +31,21 @@ func NewDialer() Dialer {
 	return &dialer{
 		cond:      sync.NewCond(&sync.Mutex{}),
 		keepalive: time.Second * 3,
+		identity:  rand.Uint32(),
+	}
+}
+
+// Setup upstream servers
+func (d *dialer) Setup(server string) {
+	for _, e := range parse(server) {
+		for p := e.portBegin; p <= e.portEnd; p++ {
+			u := upstream{proto: e.proto, addr: net.JoinHostPort(e.host, strconv.Itoa(p))}
+			d.cond.L.Lock()
+			d.pool = append(d.pool, &u)
+			d.cond.L.Unlock()
+			d.cond.Broadcast()
+			go d.connect(&u)
+		}
 	}
 }
 
@@ -50,7 +70,6 @@ func (d *dialer) DialTimeout(timeout time.Duration) (net.Conn, error) {
 		}
 		d.cond.L.Unlock()
 
-		// TODO: send connect cmd and wait for connected cmd
 		ch <- struct{}{}
 	}()
 	if timeout == time.Duration(0) {
@@ -68,6 +87,7 @@ func (d *dialer) DialTimeout(timeout time.Duration) (net.Conn, error) {
 		connid: atomic.AddUint32(&d.atomicid, 1),
 	}
 
+	// send connect cmd
 	d.write(&packet{
 		Connid: conn.connid,
 		Cmd:    connect,
@@ -76,22 +96,26 @@ func (d *dialer) DialTimeout(timeout time.Duration) (net.Conn, error) {
 	return conn, nil
 }
 
-func (d *dialer) write(p *packet) {
-	// TODO: pick one upstream tunnel and send packet
-}
+func (d *dialer) write(p *packet) error {
+	p.Senderid = d.identity
+	successed := false
 
-// Setup upstream servers
-func (d *dialer) Setup(server string) {
-	for _, e := range parse(server) {
-		for p := e.portBegin; p <= e.portEnd; p++ {
-			u := upstream{proto: e.proto, addr: net.JoinHostPort(e.host, strconv.Itoa(p))}
-			d.cond.L.Lock()
-			d.pool = append(d.pool, &u)
-			d.cond.L.Unlock()
-			d.cond.Broadcast()
-			go d.connect(&u)
+	// pick upstream tunnel and send packet
+	for _, u := range d.pickupstreams() {
+		err := u.encoder.Encode(&p)
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"error": err,
+			}).Warnln("Dialer encode packet to upstream errror")
+		} else {
+			successed = true
 		}
 	}
+	if successed {
+		// return error if all failed
+		return nil
+	}
+	return errors.New("dialer encoder error")
 }
 
 // connect to upstream server and keep tunnel alive
@@ -155,9 +179,42 @@ func (d *dialer) connect(u *upstream) {
 	}
 }
 
+func (d *dialer) pickupstreams() []*upstream {
+	// avoid duplicate
+	length := len(d.pool)
+	switch length {
+	case 0:
+		return nil
+	case 1:
+		return d.pool
+	default:
+		idx := rand.Intn(length)
+		return []*upstream{d.pool[idx], d.pool[(idx+1)%length]}
+	}
+}
+
 // push packet to packet queue
 func (d *dialer) push(p *packet) {
 	// TODO:
+
+	switch p.Cmd {
+
+	case connected:
+		if _, ok := d.packetQueue[p.Senderid][p.Connid]; !ok {
+			delete(d.closedQueue[p.Senderid], p.Connid)
+		}
+
+	case close:
+		delete(d.packetQueue[p.Senderid], p.Connid)
+		d.closedQueue[p.Senderid][p.Connid] = struct{}{}
+
+	default: //data
+		if _, ok := d.closedQueue[p.Senderid][p.Connid]; !ok {
+			if _, ok := d.packetQueue[p.Senderid][p.Connid][p.Seqid]; !ok {
+				d.packetQueue[p.Senderid][p.Connid][p.Seqid] = p
+			} // else drop duplicated packet
+		} // else drop closed packet
+	}
 }
 
 // check if there is any alive upstream
