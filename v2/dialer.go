@@ -63,7 +63,7 @@ func (d *dialer) DialTimeout(timeout time.Duration) (net.Conn, error) {
 		}
 	}
 
-	conn := &conn{
+	conn := &dialerConn{
 		dialer: d,
 		connid: atomic.AddUint32(&d.atomicid, 1),
 	}

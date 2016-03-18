@@ -12,6 +12,7 @@ import (
 // ServeMux TODO: comment
 type ServeMux struct {
 	// contains filtered or unexported fields
+	handler Handler
 }
 
 // Handler TODO: comment
@@ -105,9 +106,10 @@ func (s *serv) acceptTCP() {
 
 // handle packed data from client side as backend
 func (s *serv) packetHandler(conn net.Conn) {
+	defer conn.Close()
 
 	dec := gob.NewDecoder(conn)
-	// enc := gob.NewEncoder(conn)
+	enc := gob.NewEncoder(conn)
 
 	for {
 		p := packet{}
@@ -119,10 +121,20 @@ func (s *serv) packetHandler(conn net.Conn) {
 			// just close it
 			break
 		}
-		if p.Cmd == pong {
+		if p.Cmd == ping {
 			// reply ping
+			err := enc.Encode(&packet{Cmd: pong})
+			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"error": err,
+				}).Warnln("sever pong error")
+			}
 			continue
 		}
+		//
+		// if it's new connid
+		// s.handler.Serve(&serverConn{})
+
 		s.push(&p)
 	}
 }

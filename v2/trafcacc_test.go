@@ -36,11 +36,6 @@ func TestDial(t *testing.T) {
 
 	conn.Write([]byte("GET\n\n"))
 
-	b := make([]byte, 4096)
-	n, err := conn.Read(b)
-	if err != nil {
-		t.Fail()
-	}
+	conn.Close()
 
-	fmt.Println(string(b[:n]))
 }

@@ -5,7 +5,8 @@ import (
 	"time"
 )
 
-type conn struct {
+// client side conn
+type dialerConn struct {
 	*dialer
 	connid uint32
 }
@@ -13,7 +14,7 @@ type conn struct {
 // Read reads data from the connection.
 // Read can be made to time out and return a Error with Timeout() == true
 // after a fixed time limit; see SetDeadline and SetReadDeadline.
-func (c *conn) Read(b []byte) (n int, err error) {
+func (c *dialerConn) Read(b []byte) (n int, err error) {
 	// TODO:
 	return
 }
@@ -21,26 +22,26 @@ func (c *conn) Read(b []byte) (n int, err error) {
 // Write writes data to the connection.
 // Write can be made to time out and return a Error with Timeout() == true
 // after a fixed time limit; see SetDeadline and SetWriteDeadline.
-func (c *conn) Write(b []byte) (n int, err error) {
+func (c *dialerConn) Write(b []byte) (n int, err error) {
 	// TODO:
 	return
 }
 
 // Close closes the connection.
 // Any blocked Read or Write operations will be unblocked and return errors.
-func (c *conn) Close() error {
+func (c *dialerConn) Close() error {
 	// TODO:
 	return nil
 }
 
 // LocalAddr returns the local network address.
-func (c *conn) LocalAddr() net.Addr {
+func (c *dialerConn) LocalAddr() net.Addr {
 	// TODO:
 	return nil
 }
 
 // RemoteAddr returns the remote network address.
-func (c *conn) RemoteAddr() net.Addr {
+func (c *dialerConn) RemoteAddr() net.Addr {
 	// TODO:
 	return nil
 }
@@ -58,14 +59,14 @@ func (c *conn) RemoteAddr() net.Addr {
 // the deadline after successful Read or Write calls.
 //
 // A zero value for t means I/O operations will not time out.
-func (c *conn) SetDeadline(t time.Time) error {
+func (c *dialerConn) SetDeadline(t time.Time) error {
 	// TODO:
 	return nil
 }
 
 // SetReadDeadline sets the deadline for future Read calls.
 // A zero value for t means Read will not time out.
-func (c *conn) SetReadDeadline(t time.Time) error {
+func (c *dialerConn) SetReadDeadline(t time.Time) error {
 	// TODO:
 	return nil
 }
@@ -74,7 +75,7 @@ func (c *conn) SetReadDeadline(t time.Time) error {
 // Even if write times out, it may return n > 0, indicating that
 // some of the data was successfully written.
 // A zero value for t means Write will not time out.
-func (c *conn) SetWriteDeadline(t time.Time) error {
+func (c *dialerConn) SetWriteDeadline(t time.Time) error {
 	// TODO:
 	return nil
 }
