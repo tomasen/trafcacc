@@ -42,9 +42,6 @@ func NewServeMux() *ServeMux {
 	}
 }
 
-// DefaultServeMux TODO: comment
-var DefaultServeMux = NewServeMux()
-
 // HandleFunc registers the handler for the given addresses
 // that back-end server listened to
 func (mux *ServeMux) HandleFunc(listento string, handler func(net.Conn)) {

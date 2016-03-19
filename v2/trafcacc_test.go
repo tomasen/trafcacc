@@ -45,7 +45,8 @@ func testHandle(conn net.Conn) {
 }
 
 func TestDial(t *testing.T) {
-	HandleFunc("tcp://:51010-51020", testHandle)
+	srv := NewServeMux()
+	srv.HandleFunc("tcp://:51010-51020", testHandle)
 
 	d := NewDialer()
 	d.Setup("tcp://127.0.0.1:51010-51020")

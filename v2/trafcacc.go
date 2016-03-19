@@ -24,17 +24,6 @@ type Dialer interface {
 	DialTimeout(timeout time.Duration) (net.Conn, error)
 }
 
-// Handle registers the handler for the given addresses
-func Handle(listento string, handler Handler) {
-	DefaultServeMux.Handle(listento, handler)
-}
-
-// HandleFunc registers the handler for the given addresses
-// that back-end server listened to
-func HandleFunc(listento string, handler func(net.Conn)) {
-	Handle(listento, HandlerFunc(handler))
-}
-
 // Accelerate traffic by setup front-end dialer and back-end server
 func Accelerate(l, u string, role tag) Trafcacc {
 
