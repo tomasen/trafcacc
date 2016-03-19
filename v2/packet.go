@@ -147,6 +147,15 @@ func (pq *packetQueue) arrived(senderid, connid uint32) bool {
 	return false
 }
 
+func (pq *packetQueue) waitforArrived(senderid, connid uint32) {
+	cond := pq.cond(senderid, connid)
+	cond.L.Lock()
+	if !pq.arrived(senderid, connid) {
+		cond.Wait()
+	}
+	cond.L.Unlock()
+}
+
 func (pq *packetQueue) isclosed(senderid, connid uint32) bool {
 	if _, ok := pq.closed[senderid][connid]; ok {
 		return true // connection closed
@@ -156,11 +165,17 @@ func (pq *packetQueue) isclosed(senderid, connid uint32) bool {
 
 func (pq *packetQueue) pop(senderid, connid uint32) *packet {
 	if q, ok := pq.queue[senderid][connid]; ok {
+		q.cond.L.Lock()
 		if p, ok := q.queue[q.waitingSeqid]; ok {
+			defer func() {
+				q.cond.L.Unlock()
+				q.cond.Broadcast()
+			}()
 			delete(q.queue, q.waitingSeqid)
 			q.waitingSeqid++
 			return p
 		}
+		q.cond.L.Unlock()
 	}
 	return nil
 }

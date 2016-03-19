@@ -19,11 +19,8 @@ type dialerConn struct {
 // Read can be made to time out and return a Error with Timeout() == true
 // after a fixed time limit; see SetDeadline and SetReadDeadline.
 func (d *dialerConn) Read(b []byte) (n int, err error) {
-	cond := d.packetQueue.cond(d.identity, d.connid)
-	cond.L.Lock()
-	for !d.packetQueue.arrived(d.identity, d.connid) {
-		cond.Wait()
-	}
+
+	d.packetQueue.waitforArrived(d.identity, d.connid)
 	for {
 		p := d.packetQueue.pop(d.identity, d.connid)
 		if p == nil {
@@ -32,7 +29,6 @@ func (d *dialerConn) Read(b []byte) (n int, err error) {
 		// buffered reader writer
 		d.rdr.Write(p.Buf)
 	}
-	cond.L.Unlock()
 
 	return d.rdr.Read(b)
 }

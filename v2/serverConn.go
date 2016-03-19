@@ -29,10 +29,8 @@ func (c *serverConn) Read(b []byte) (n int, err error) {
 		}
 		return 0, io.EOF
 	}
-	cond.L.Lock()
-	for !c.packetQueue.arrived(c.senderid, c.connid) {
-		cond.Wait()
-	}
+
+	c.packetQueue.waitforArrived(c.senderid, c.connid)
 	for {
 		p := c.packetQueue.pop(c.senderid, c.connid)
 		if p == nil {
@@ -41,8 +39,6 @@ func (c *serverConn) Read(b []byte) (n int, err error) {
 		// buffered reader writer
 		c.rdr.Write(p.Buf)
 	}
-	cond.L.Unlock()
-	cond.Broadcast()
 
 	return c.rdr.Read(b)
 }
