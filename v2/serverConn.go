@@ -27,7 +27,7 @@ func (c *serverConn) Read(b []byte) (n int, err error) {
 
 	c.packetQueue.waitforArrived(c.senderid, c.connid)
 
-	if c.packetQueue.isclosed(c.senderid, c.connid) {
+	if c.packetQueue.isClosed(c.senderid, c.connid) {
 		if c.rdr.Len() > 0 {
 			return c.rdr.Read(b)
 		}
