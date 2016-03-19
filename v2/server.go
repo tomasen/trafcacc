@@ -3,7 +3,6 @@ package trafcacc
 import (
 	"encoding/gob"
 	"errors"
-	"fmt"
 	"net"
 	"strconv"
 	"time"
@@ -168,7 +167,7 @@ func (s *serv) packetHandler(conn net.Conn) {
 			}
 			break
 		}
-		fmt.Println("server received", p)
+
 		switch p.Cmd {
 		case ping:
 			s.pool.cond.L.Lock()
@@ -188,7 +187,7 @@ func (s *serv) packetHandler(conn net.Conn) {
 			continue
 
 		default:
-			fmt.Println("server push", p)
+
 			s.push(&p)
 		}
 
@@ -206,7 +205,7 @@ func (s *serv) push(p *packet) {
 	default: //data
 		if s.packetQueue.create(p.Senderid, p.Connid) {
 			// it's new conn
-			fmt.Println("new conn")
+
 			p.Cmd = connected
 			s.write(p)
 
@@ -217,7 +216,7 @@ func (s *serv) push(p *packet) {
 			})
 		}
 		if p.Cmd == data {
-			fmt.Println("data push")
+
 			s.packetQueue.add(p)
 		}
 	}

@@ -3,7 +3,6 @@ package trafcacc
 import (
 	"encoding/gob"
 	"errors"
-	"fmt"
 	"math/rand"
 	"net"
 	"strconv"
@@ -101,7 +100,7 @@ func (d *dialer) write(p *packet) error {
 				"error": err,
 			}).Warnln("Dialer encode packet to upstream errror")
 		} else {
-			fmt.Println("dialer send ", p)
+
 			successed = true
 		}
 	}

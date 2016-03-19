@@ -1,7 +1,6 @@
 package trafcacc
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -99,23 +98,23 @@ func (pq *packetQueue) close(senderid, connid uint32) {
 }
 
 func (pq *packetQueue) add(p *packet) {
-	fmt.Println("add packet to queue0")
+
 	pq.mux.Lock()
 	_, ok := pq.closed[p.Senderid][p.Connid]
 	pq.mux.Unlock()
 	if !ok {
-		fmt.Println("add packet to queue1")
+
 		pq.mux.Lock()
 		q, ok := pq.queue[p.Senderid][p.Connid]
 		pq.mux.Unlock()
 		if ok {
-			fmt.Println("add packet to queue2")
+
 			// TODO: lock
 			q.cond.L.Lock()
 			if _, ok := q.queue[p.Seqid]; !ok {
-				fmt.Println("add packet to queue3")
+
 				q.queue[p.Seqid] = p
-				fmt.Println("add packet to queue", p)
+
 				q.cond.L.Unlock()
 				q.cond.Broadcast()
 			} else { // else drop duplicated packet
@@ -141,7 +140,7 @@ func (pq *packetQueue) arrived(senderid, connid uint32) bool {
 		if _, ok := q.queue[q.waitingSeqid]; ok {
 			return true
 		}
-		fmt.Println("current pq", q)
+
 	}
 	return false
 }

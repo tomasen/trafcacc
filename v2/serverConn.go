@@ -2,7 +2,6 @@ package trafcacc
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"net"
 	"sync/atomic"
@@ -22,7 +21,7 @@ type serverConn struct {
 // Read can be made to time out and return a Error with Timeout() == true
 // after a fixed time limit; see SetDeadline and SetReadDeadline.
 func (c *serverConn) Read(b []byte) (n int, err error) {
-	fmt.Println("serv read0")
+
 	cond := c.packetQueue.cond(c.senderid, c.connid)
 	if cond == nil {
 		if c.rdr.Len() > 0 {
@@ -45,7 +44,6 @@ func (c *serverConn) Read(b []byte) (n int, err error) {
 	cond.L.Unlock()
 	cond.Broadcast()
 
-	fmt.Println("serv read1")
 	return c.rdr.Read(b)
 }
 
