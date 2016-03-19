@@ -2,6 +2,7 @@ package trafcacc
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net"
 	"sync/atomic"
@@ -30,13 +31,21 @@ func (c *serverConn) Read(b []byte) (n int, err error) {
 			break
 		}
 		// buffered reader writer
-		c.rdr.Write(p.Buf)
+		_, err := c.rdr.Write(p.Buf)
+		if err != nil {
+			// TODO: deal with ErrTooLarge
+		}
+
+		if c.rdr.Len() > buffersize {
+			break
+		}
 	}
 
 	if c.pqs.isClosed(c.senderid, c.connid) && c.rdr.Len() <= 0 {
 		return 0, io.EOF
 	}
 
+	fmt.Println("s Read")
 	return c.rdr.Read(b)
 }
 
@@ -53,7 +62,7 @@ func (c *serverConn) Write(b []byte) (n int, err error) {
 	if err == nil {
 		n = len(b)
 	}
-
+	fmt.Println("s Write", n)
 	return n, err
 }
 

@@ -2,6 +2,7 @@ package trafcacc
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net"
 	"sync/atomic"
@@ -20,7 +21,6 @@ type dialerConn struct {
 // Read can be made to time out and return a Error with Timeout() == true
 // after a fixed time limit; see SetDeadline and SetReadDeadline.
 func (d *dialerConn) Read(b []byte) (n int, err error) {
-
 	d.pqd.waitforArrived(d.identity, d.connid)
 	for {
 		p := d.pqd.pop(d.identity, d.connid)
@@ -28,13 +28,21 @@ func (d *dialerConn) Read(b []byte) (n int, err error) {
 			break
 		}
 		// buffered reader writer
-		d.rdr.Write(p.Buf)
+		_, err := d.rdr.Write(p.Buf)
+		if err != nil {
+			// TODO: deal with ErrTooLarge
+		}
+
+		if d.rdr.Len() > buffersize {
+			break
+		}
 	}
 
 	if d.pqd.isClosed(d.identity, d.connid) && d.rdr.Len() == 0 {
 		return 0, io.EOF
 	}
 
+	fmt.Println("d Read")
 	return d.rdr.Read(b)
 }
 
@@ -50,6 +58,7 @@ func (d *dialerConn) Write(b []byte) (n int, err error) {
 	if err == nil {
 		n = len(b)
 	}
+	fmt.Println("d Write", n)
 	return n, err
 }
 

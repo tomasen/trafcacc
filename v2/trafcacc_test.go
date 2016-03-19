@@ -103,7 +103,7 @@ func TestIperfTCP(t *testing.T) {
 		time.Sleep(time.Second)
 		Accelerate("tcp://:50500", "tcp://127.0.0.1:41501-41504", FRONTEND)
 
-		iperfExec(exec.Command("iperf3", "-c", "127.0.0.1", "-p", "50500", "-R", "-P", "3"))
+		//iperfExec(exec.Command("iperf3", "-c", "127.0.0.1", "-p", "50500", "-R", "-P", "3"))
 		iperfExec(exec.Command("iperf3", "-c", "127.0.0.1", "-p", "50500"))
 
 		pgid, err := syscall.Getpgid(cmd.Process.Pid)
