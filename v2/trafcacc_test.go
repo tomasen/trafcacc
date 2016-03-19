@@ -28,14 +28,12 @@ func testHandle(conn net.Conn) {
 	in := 1
 
 	for {
-
 		err := dec.Decode(&in)
 		if err != nil {
-			logrus.Fatalln("server read error", err)
+			logrus.Warnln("server read error", err)
 			break
 		}
 		in *= 2
-
 		err = enc.Encode(in)
 		if err != nil {
 			logrus.Fatalln("server write error", err)
@@ -73,7 +71,7 @@ func TestDial(t *testing.T) {
 
 		err = dec.Decode(&out)
 		if err != nil {
-			logrus.Fatalln("dialer read error", err)
+			logrus.Warnln("dialer read error", err)
 			t.Fail()
 			break
 		}

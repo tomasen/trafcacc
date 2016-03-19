@@ -137,10 +137,12 @@ func (pq *packetQueue) waitforArrived(senderid, connid uint32) {
 
 	if exist && q != nil {
 		q.L.Lock()
-		if !q.arrived() {
+		for !q.arrived() {
 			q.Wait()
 		}
 		q.L.Unlock()
+	} else {
+		logrus.Fatalln("waitforArrived() wait on deteled queue")
 	}
 }
 
@@ -164,11 +166,11 @@ func (pq *packetQueue) pop(senderid, connid uint32) *packet {
 	pq.mux.Unlock()
 
 	if exist && q != nil {
+		q.L.Lock()
+		defer q.L.Unlock()
 		if p, exist := q.queue[q.waitingSeqid]; exist {
-			q.L.Lock()
 			delete(q.queue, q.waitingSeqid)
 			q.waitingSeqid++
-			q.L.Unlock()
 			q.Broadcast()
 			return p
 		}

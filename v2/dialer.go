@@ -180,7 +180,7 @@ func (d *dialer) push(p *packet) {
 	switch p.Cmd {
 
 	case closed:
-		go d.packetQueue.close(p.Senderid, p.Connid)
+		d.packetQueue.close(p.Senderid, p.Connid)
 
 	case connected:
 		// TODO: maybe move d.packetQueue.create(p.Senderid, p.Connid) here?

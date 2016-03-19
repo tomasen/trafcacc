@@ -74,7 +74,7 @@ func (mux *ServeMux) write(p *packet) error {
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
 				"error": err,
-			}).Warnln("Dialer encode packet to upstream errror")
+			}).Warnln("Server encode packet to upstream error")
 		} else {
 			successed = true
 		}
@@ -83,6 +83,9 @@ func (mux *ServeMux) write(p *packet) error {
 		// return error if all failed
 		return nil
 	}
+	logrus.WithFields(logrus.Fields{
+		"error": "no successed write",
+	}).Warnln("Server encode packet to upstream error")
 	return errors.New("dialer encoder error")
 }
 
@@ -191,7 +194,7 @@ func (s *serv) push(p *packet) {
 	switch p.Cmd {
 
 	case close:
-		go s.packetQueue.close(p.Senderid, p.Connid)
+		s.packetQueue.close(p.Senderid, p.Connid)
 
 	case connect:
 		fallthrough

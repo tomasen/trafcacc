@@ -57,6 +57,8 @@ func (pool *streampool) append(u *upstream) {
 }
 
 func (pool *streampool) pickupstreams() []*upstream {
+	pool.waitforalive()
+
 	pool.L.Lock()
 	defer pool.L.Unlock()
 	var alived []*upstream
@@ -80,13 +82,17 @@ func (pool *streampool) pickupstreams() []*upstream {
 
 // check if there is any alive upstream
 func (pool *streampool) alive() bool {
+	alive := 0
 	for _, v := range pool.pool {
 		if v.proto == "udp" {
-			return true
+			alive++
 		}
 		if v.isAlive() {
-			return true
+			alive++
 		}
+	}
+	if alive >= 2 || alive >= len(pool.pool) {
+		return true
 	}
 	return false
 }
