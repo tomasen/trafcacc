@@ -2,10 +2,13 @@ package trafcacc
 
 import (
 	"encoding/gob"
+	"fmt"
 	"net"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/Sirupsen/logrus"
 )
 
 func TestMain(tm *testing.M) {
@@ -28,14 +31,14 @@ func testHandle(conn net.Conn) {
 
 		err := dec.Decode(&in)
 		if err != nil {
-
+			logrus.Fatalln("server read error", err)
 			break
 		}
 		in *= 2
 
 		err = enc.Encode(in)
 		if err != nil {
-
+			logrus.Fatalln("server write error", err)
 			break
 		}
 	}
@@ -49,7 +52,7 @@ func TestDial(t *testing.T) {
 
 	conn, err := d.Dial()
 	if err != nil {
-
+		logrus.Fatalln("dialer dial error", err)
 		t.Fail()
 		return
 	}
@@ -63,22 +66,23 @@ func TestDial(t *testing.T) {
 
 		err := enc.Encode(in)
 		if err != nil {
-
+			logrus.Fatalln("dialer write error", err)
 			t.Fail()
 			break
 		}
 
 		err = dec.Decode(&out)
 		if err != nil {
-
+			logrus.Fatalln("dialer read error", err)
 			t.Fail()
 			break
 		}
-
+		fmt.Print(in, " ", out, " ")
 		if out != in*2 {
 			t.Fail()
 			break
 		}
+
 		in = out * 2
 		if out > 10240 {
 			break

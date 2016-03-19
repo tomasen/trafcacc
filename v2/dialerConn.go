@@ -2,6 +2,8 @@ package trafcacc
 
 import (
 	"bytes"
+	"fmt"
+	"io"
 	"net"
 	"sync/atomic"
 	"time"
@@ -19,8 +21,16 @@ type dialerConn struct {
 // Read can be made to time out and return a Error with Timeout() == true
 // after a fixed time limit; see SetDeadline and SetReadDeadline.
 func (d *dialerConn) Read(b []byte) (n int, err error) {
-
+	fmt.Println("dialer Read")
 	d.packetQueue.waitforArrived(d.identity, d.connid)
+
+	if d.packetQueue.isclosed(d.identity, d.connid) {
+		if d.rdr.Len() > 0 {
+			return d.rdr.Read(b)
+		}
+		return 0, io.EOF
+	}
+
 	for {
 		p := d.packetQueue.pop(d.identity, d.connid)
 		if p == nil {

@@ -2,6 +2,7 @@ package trafcacc
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net"
 	"sync/atomic"
@@ -22,15 +23,17 @@ type serverConn struct {
 // after a fixed time limit; see SetDeadline and SetReadDeadline.
 func (c *serverConn) Read(b []byte) (n int, err error) {
 
-	cond := c.packetQueue.cond(c.senderid, c.connid)
-	if cond == nil {
+	fmt.Println("server Read")
+
+	c.packetQueue.waitforArrived(c.senderid, c.connid)
+
+	if c.packetQueue.isclosed(c.senderid, c.connid) {
 		if c.rdr.Len() > 0 {
 			return c.rdr.Read(b)
 		}
 		return 0, io.EOF
 	}
 
-	c.packetQueue.waitforArrived(c.senderid, c.connid)
 	for {
 		p := c.packetQueue.pop(c.senderid, c.connid)
 		if p == nil {
