@@ -1,6 +1,7 @@
 package trafcacc
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -36,6 +37,7 @@ type queue struct {
 type packetQueue struct {
 	queue  map[uint32]map[uint32]*queue
 	closed map[uint32]map[uint32]struct{}
+	mux    sync.Mutex
 }
 
 func newPacketQueue() *packetQueue {
@@ -46,9 +48,12 @@ func newPacketQueue() *packetQueue {
 }
 
 func (pq *packetQueue) create(senderid, connid uint32) (isnew bool) {
+	pq.mux.Lock()
+	defer pq.mux.Unlock()
 
 	if _, ok := pq.queue[senderid]; !ok {
 		pq.queue[senderid] = make(map[uint32]*queue)
+		pq.closed[senderid] = make(map[uint32]struct{})
 	}
 
 	if _, ok := pq.queue[senderid][connid]; !ok {
@@ -66,49 +71,77 @@ func (pq *packetQueue) create(senderid, connid uint32) (isnew bool) {
 
 func (pq *packetQueue) close(senderid, connid uint32) {
 	// TODO: wait queue drained cleanedup
+	pq.mux.Lock()
 	if q, ok := pq.queue[senderid][connid]; ok {
 		delete(pq.queue[senderid], connid)
-		pq.closed[senderid][connid] = struct{}{}
+		pq.mux.Unlock()
 
-		q.cond.Broadcast()
+		cond := q.cond
+		cond.L.Lock()
+		pq.closed[senderid][connid] = struct{}{}
+		cond.L.Unlock()
+		cond.Broadcast()
 
 		go func() {
 			// expired after 30 minutes
 			<-time.After(30 * time.Minute)
 
+			cond.L.Lock()
 			if _, ok := pq.closed[senderid][connid]; ok {
 				delete(pq.closed[senderid], connid)
 			}
+			cond.L.Unlock()
+			cond.Broadcast()
 		}()
+	} else {
+		pq.mux.Unlock()
 	}
 }
 
 func (pq *packetQueue) add(p *packet) {
-	if _, ok := pq.closed[p.Senderid][p.Connid]; !ok {
-		if q, ok := pq.queue[p.Senderid][p.Connid]; ok {
+	fmt.Println("add packet to queue0")
+	pq.mux.Lock()
+	_, ok := pq.closed[p.Senderid][p.Connid]
+	pq.mux.Unlock()
+	if !ok {
+		fmt.Println("add packet to queue1")
+		pq.mux.Lock()
+		q, ok := pq.queue[p.Senderid][p.Connid]
+		pq.mux.Unlock()
+		if ok {
+			fmt.Println("add packet to queue2")
 			// TODO: lock
+			q.cond.L.Lock()
 			if _, ok := q.queue[p.Seqid]; !ok {
-				q.cond.L.Lock()
+				fmt.Println("add packet to queue3")
 				q.queue[p.Seqid] = p
+				fmt.Println("add packet to queue", p)
 				q.cond.L.Unlock()
 				q.cond.Broadcast()
-			} // else drop duplicated packet
+			} else { // else drop duplicated packet
+				q.cond.L.Unlock()
+			}
+
 		} else {
 			logrus.WithFields(logrus.Fields{
 				"packet": p,
 			}).Fatalln("packetQueue havn't been created")
 		}
-	} // else drop closed packet
+	}
 }
 
 func (pq *packetQueue) arrived(senderid, connid uint32) bool {
 	if pq.isclosed(senderid, connid) {
 		return true // if connection closed
 	}
-	if q, ok := pq.queue[senderid][connid]; ok {
+	pq.mux.Lock()
+	q, ok := pq.queue[senderid][connid]
+	pq.mux.Unlock()
+	if ok {
 		if _, ok := q.queue[q.waitingSeqid]; ok {
 			return true
 		}
+		fmt.Println("current pq", q)
 	}
 	return false
 }
@@ -132,6 +165,8 @@ func (pq *packetQueue) pop(senderid, connid uint32) *packet {
 }
 
 func (pq *packetQueue) cond(senderid, connid uint32) *sync.Cond {
+	pq.mux.Lock()
+	defer pq.mux.Unlock()
 	if q, ok := pq.queue[senderid][connid]; ok {
 		return q.cond
 	}

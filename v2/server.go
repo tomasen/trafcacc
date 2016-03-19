@@ -3,9 +3,9 @@ package trafcacc
 import (
 	"encoding/gob"
 	"errors"
+	"fmt"
 	"net"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/Sirupsen/logrus"
@@ -16,8 +16,7 @@ type ServeMux struct {
 	// contains filtered or unexported fields
 	handler Handler
 
-	pool   streampool
-	plcond *sync.Cond
+	pool *streampool
 
 	packetQueue *packetQueue
 }
@@ -39,7 +38,7 @@ func (f HandlerFunc) Serve(c net.Conn) {
 func NewServeMux() *ServeMux {
 	return &ServeMux{
 		packetQueue: newPacketQueue(),
-		plcond:      sync.NewCond(&sync.Mutex{}),
+		pool:        newStreamPool(),
 	}
 }
 
@@ -158,10 +157,7 @@ func (s *serv) packetHandler(conn net.Conn) {
 		s.pool.remove(u.proto, u.addr)
 	}()
 
-	s.plcond.L.Lock()
-	s.pool = append(s.pool, &u)
-	s.plcond.L.Unlock()
-	s.plcond.Broadcast()
+	s.pool.append(&u)
 
 	for {
 		p := packet{}
@@ -172,13 +168,13 @@ func (s *serv) packetHandler(conn net.Conn) {
 			}
 			break
 		}
+		fmt.Println("server received", p)
 		switch p.Cmd {
 		case ping:
-
-			s.plcond.L.Lock()
+			s.pool.cond.L.Lock()
 			u.alive = time.Now()
-			s.plcond.L.Unlock()
-			s.plcond.Broadcast()
+			s.pool.cond.L.Unlock()
+			s.pool.cond.Broadcast()
 
 			// reply ping
 			err := enc.Encode(&packet{Cmd: pong})
@@ -186,10 +182,13 @@ func (s *serv) packetHandler(conn net.Conn) {
 				logrus.WithFields(logrus.Fields{
 					"error": err,
 				}).Warnln("sever pong error")
+				break
 			}
+
 			continue
 
 		default:
+			fmt.Println("server push", p)
 			s.push(&p)
 		}
 
@@ -199,9 +198,15 @@ func (s *serv) packetHandler(conn net.Conn) {
 func (s *serv) push(p *packet) {
 	switch p.Cmd {
 
+	case close:
+		go s.packetQueue.close(p.Senderid, p.Connid)
+
 	case connect:
+		fallthrough
+	default: //data
 		if s.packetQueue.create(p.Senderid, p.Connid) {
 			// it's new conn
+			fmt.Println("new conn")
 			p.Cmd = connected
 			s.write(p)
 
@@ -211,11 +216,7 @@ func (s *serv) push(p *packet) {
 				connid:   p.Connid,
 			})
 		}
-
-	case close:
-		go s.packetQueue.close(p.Senderid, p.Connid)
-
-	default: //data
+		fmt.Println("data push")
 		s.packetQueue.add(p)
 	}
 }

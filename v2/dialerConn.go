@@ -2,6 +2,7 @@ package trafcacc
 
 import (
 	"bytes"
+	"fmt"
 	"net"
 	"sync/atomic"
 	"time"
@@ -41,6 +42,7 @@ func (d *dialerConn) Read(b []byte) (n int, err error) {
 // Write can be made to time out and return a Error with Timeout() == true
 // after a fixed time limit; see SetDeadline and SetWriteDeadline.
 func (d *dialerConn) Write(b []byte) (n int, err error) {
+	fmt.Println("dialerConn write", b)
 	err = d.write(&packet{
 		Seqid:  atomic.AddUint32(&d.seqid, 1),
 		Connid: d.connid,

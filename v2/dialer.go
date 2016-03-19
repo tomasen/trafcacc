@@ -3,10 +3,10 @@ package trafcacc
 import (
 	"encoding/gob"
 	"errors"
+	"fmt"
 	"math/rand"
 	"net"
 	"strconv"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -14,8 +14,7 @@ import (
 )
 
 type dialer struct {
-	pool   streampool
-	plcond *sync.Cond
+	pool *streampool
 
 	identity uint32
 	atomicid uint32
@@ -26,7 +25,7 @@ type dialer struct {
 // NewDialer TODO: comment
 func NewDialer() Dialer {
 	return &dialer{
-		plcond:      sync.NewCond(&sync.Mutex{}),
+		pool:        newStreamPool(),
 		identity:    rand.Uint32(),
 		packetQueue: newPacketQueue(),
 	}
@@ -37,10 +36,7 @@ func (d *dialer) Setup(server string) {
 	for _, e := range parse(server) {
 		for p := e.portBegin; p <= e.portEnd; p++ {
 			u := upstream{proto: e.proto, addr: net.JoinHostPort(e.host, strconv.Itoa(p))}
-			d.plcond.L.Lock()
-			d.pool = append(d.pool, &u)
-			d.plcond.L.Unlock()
-			d.plcond.Broadcast()
+			d.pool.append(&u)
 			go d.connect(&u)
 		}
 	}
@@ -61,11 +57,7 @@ func (d *dialer) DialTimeout(timeout time.Duration) (net.Conn, error) {
 	// wait for upstream online and alive
 	ch := make(chan struct{}, 1)
 	go func() {
-		d.plcond.L.Lock()
-		for !d.pool.alive() {
-			d.plcond.Wait()
-		}
-		d.plcond.L.Unlock()
+		d.pool.waitforalive()
 
 		ch <- struct{}{}
 	}()
@@ -109,6 +101,7 @@ func (d *dialer) write(p *packet) error {
 				"error": err,
 			}).Warnln("Dialer encode packet to upstream errror")
 		} else {
+			fmt.Println("dialer send ", p)
 			successed = true
 		}
 	}
@@ -158,16 +151,22 @@ func (d *dialer) connect(u *upstream) {
 				}
 				if p.Cmd == pong {
 
-					d.plcond.L.Lock()
+					d.pool.cond.L.Lock()
 					// set alive only when received pong
 					u.alive = time.Now()
-					d.plcond.L.Unlock()
-					d.plcond.Broadcast()
+					d.pool.cond.L.Unlock()
+					d.pool.cond.Broadcast()
 
-					err = u.ping()
-					if err != nil {
-						break
-					}
+					go func() {
+						<-time.After(time.Second)
+						err := u.ping()
+						if err != nil {
+							logrus.WithFields(logrus.Fields{
+								"error": err,
+							}).Warnln("dialer ping error")
+							// TODO: close connection?
+						}
+					}()
 					continue
 				}
 
