@@ -10,7 +10,9 @@ import (
 //log "github.com/Sirupsen/logrus"
 
 const (
-	buffersize  = 4096 * 4
+	buffersize = 4096 * 4
+	keepalive  = time.Second * 3
+
 	dialtimeout = 15
 	readtimeout = 30
 )

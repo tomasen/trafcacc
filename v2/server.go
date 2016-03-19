@@ -2,23 +2,24 @@ package trafcacc
 
 import (
 	"encoding/gob"
+	"errors"
 	"net"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/Sirupsen/logrus"
 )
-
-type packetQueue map[uint32]map[uint32]map[uint32]*packet
-type closedQueue map[uint32]map[uint32]struct{}
 
 // ServeMux TODO: comment
 type ServeMux struct {
 	// contains filtered or unexported fields
 	handler Handler
 
-	packetQueue packetQueue
-	closedQueue closedQueue
+	pool   streampool
+	plcond *sync.Cond
+
+	packetQueue *packetQueue
 }
 
 // Handler TODO: comment
@@ -36,7 +37,10 @@ func (f HandlerFunc) Serve(c net.Conn) {
 
 // NewServeMux allocates and returns a new ServeMux.
 func NewServeMux() *ServeMux {
-	return &ServeMux{packetQueue: make(packetQueue)}
+	return &ServeMux{
+		packetQueue: newPacketQueue(),
+		plcond:      sync.NewCond(&sync.Mutex{}),
+	}
 }
 
 // DefaultServeMux TODO: comment
@@ -60,9 +64,27 @@ func (mux *ServeMux) Handle(listento string, handler Handler) {
 	}
 }
 
-func (mux *ServeMux) write(*packet) error {
-	// TODO
-	return nil
+func (mux *ServeMux) write(p *packet) error {
+	successed := false
+
+	// TODO: wait for upstreams avalible?
+
+	// pick upstream tunnel and send packet
+	for _, u := range mux.pool.pickupstreams() {
+		err := u.encoder.Encode(&p)
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"error": err,
+			}).Warnln("Dialer encode packet to upstream errror")
+		} else {
+			successed = true
+		}
+	}
+	if successed {
+		// return error if all failed
+		return nil
+	}
+	return errors.New("dialer encoder error")
 }
 
 type serv struct {
@@ -118,10 +140,28 @@ func (s *serv) acceptTCP() {
 
 // handle packed data from client side as backend
 func (s *serv) packetHandler(conn net.Conn) {
-	defer conn.Close()
 
 	dec := gob.NewDecoder(conn)
 	enc := gob.NewEncoder(conn)
+
+	// add to pool
+	u := upstream{
+		proto:   "tcp",
+		addr:    conn.RemoteAddr().String(),
+		encoder: enc,
+		decoder: dec,
+	}
+
+	defer func() {
+		conn.Close()
+		// remove from pool
+		s.pool.remove(u.proto, u.addr)
+	}()
+
+	s.plcond.L.Lock()
+	s.pool = append(s.pool, &u)
+	s.plcond.L.Unlock()
+	s.plcond.Broadcast()
 
 	for {
 		p := packet{}
@@ -134,6 +174,12 @@ func (s *serv) packetHandler(conn net.Conn) {
 		}
 		switch p.Cmd {
 		case ping:
+
+			s.plcond.L.Lock()
+			u.alive = time.Now()
+			s.plcond.L.Unlock()
+			s.plcond.Broadcast()
+
 			// reply ping
 			err := enc.Encode(&packet{Cmd: pong})
 			if err != nil {
@@ -154,9 +200,7 @@ func (s *serv) push(p *packet) {
 	switch p.Cmd {
 
 	case connect:
-		if _, ok := s.packetQueue[p.Senderid][p.Connid]; !ok {
-			delete(s.closedQueue[p.Senderid], p.Connid)
-
+		if s.packetQueue.create(p.Senderid, p.Connid) {
 			// it's new conn
 			p.Cmd = connected
 			s.write(p)
@@ -169,14 +213,9 @@ func (s *serv) push(p *packet) {
 		}
 
 	case close:
-		delete(s.packetQueue[p.Senderid], p.Connid)
-		s.closedQueue[p.Senderid][p.Connid] = struct{}{}
+		go s.packetQueue.close(p.Senderid, p.Connid)
 
 	default: //data
-		if _, ok := s.closedQueue[p.Senderid][p.Connid]; !ok {
-			if _, ok := s.packetQueue[p.Senderid][p.Connid][p.Seqid]; !ok {
-				s.packetQueue[p.Senderid][p.Connid][p.Seqid] = p
-			} // else drop duplicated packet
-		} // else drop closed packet
+		s.packetQueue.add(p)
 	}
 }

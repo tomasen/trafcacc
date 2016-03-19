@@ -14,24 +14,21 @@ import (
 )
 
 type dialer struct {
-	keepalive time.Duration
-
-	pool []*upstream
-	cond *sync.Cond
+	pool   streampool
+	plcond *sync.Cond
 
 	identity uint32
 	atomicid uint32
 
-	packetQueue packetQueue
-	closedQueue closedQueue
+	packetQueue *packetQueue
 }
 
 // NewDialer TODO: comment
 func NewDialer() Dialer {
 	return &dialer{
-		cond:      sync.NewCond(&sync.Mutex{}),
-		keepalive: time.Second * 3,
-		identity:  rand.Uint32(),
+		plcond:      sync.NewCond(&sync.Mutex{}),
+		identity:    rand.Uint32(),
+		packetQueue: newPacketQueue(),
 	}
 }
 
@@ -40,10 +37,10 @@ func (d *dialer) Setup(server string) {
 	for _, e := range parse(server) {
 		for p := e.portBegin; p <= e.portEnd; p++ {
 			u := upstream{proto: e.proto, addr: net.JoinHostPort(e.host, strconv.Itoa(p))}
-			d.cond.L.Lock()
+			d.plcond.L.Lock()
 			d.pool = append(d.pool, &u)
-			d.cond.L.Unlock()
-			d.cond.Broadcast()
+			d.plcond.L.Unlock()
+			d.plcond.Broadcast()
 			go d.connect(&u)
 		}
 	}
@@ -64,11 +61,11 @@ func (d *dialer) DialTimeout(timeout time.Duration) (net.Conn, error) {
 	// wait for upstream online and alive
 	ch := make(chan struct{}, 1)
 	go func() {
-		d.cond.L.Lock()
-		for !d.check() {
-			d.cond.Wait()
+		d.plcond.L.Lock()
+		for !d.pool.alive() {
+			d.plcond.Wait()
 		}
-		d.cond.L.Unlock()
+		d.plcond.L.Unlock()
 
 		ch <- struct{}{}
 	}()
@@ -87,6 +84,8 @@ func (d *dialer) DialTimeout(timeout time.Duration) (net.Conn, error) {
 		connid: atomic.AddUint32(&d.atomicid, 1),
 	}
 
+	d.packetQueue.create(conn.identity, conn.connid)
+
 	// send connect cmd
 	d.write(&packet{
 		Connid: conn.connid,
@@ -100,8 +99,10 @@ func (d *dialer) write(p *packet) error {
 	p.Senderid = d.identity
 	successed := false
 
+	// TODO: wait for upstreams avalible?
+
 	// pick upstream tunnel and send packet
-	for _, u := range d.pickupstreams() {
+	for _, u := range d.pool.pickupstreams() {
 		err := u.encoder.Encode(&p)
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
@@ -157,16 +158,17 @@ func (d *dialer) connect(u *upstream) {
 				}
 				if p.Cmd == pong {
 
-					d.cond.L.Lock()
+					d.plcond.L.Lock()
 					// set alive only when received pong
 					u.alive = time.Now()
-					d.cond.L.Unlock()
-					d.cond.Broadcast()
+					d.plcond.L.Unlock()
+					d.plcond.Broadcast()
 
 					err = u.ping()
 					if err != nil {
 						break
 					}
+					continue
 				}
 
 				d.push(&p)
@@ -179,20 +181,6 @@ func (d *dialer) connect(u *upstream) {
 	}
 }
 
-func (d *dialer) pickupstreams() []*upstream {
-	// avoid duplicate
-	length := len(d.pool)
-	switch length {
-	case 0:
-		return nil
-	case 1:
-		return d.pool
-	default:
-		idx := rand.Intn(length)
-		return []*upstream{d.pool[idx], d.pool[(idx+1)%length]}
-	}
-}
-
 // push packet to packet queue
 func (d *dialer) push(p *packet) {
 	// TODO:
@@ -200,32 +188,12 @@ func (d *dialer) push(p *packet) {
 	switch p.Cmd {
 
 	case connected:
-		if _, ok := d.packetQueue[p.Senderid][p.Connid]; !ok {
-			delete(d.closedQueue[p.Senderid], p.Connid)
-		}
+		// TODO: maybe move d.packetQueue.create(p.Senderid, p.Connid) here?
 
-	case close:
-		delete(d.packetQueue[p.Senderid], p.Connid)
-		d.closedQueue[p.Senderid][p.Connid] = struct{}{}
+	case closed:
+		go d.packetQueue.close(p.Senderid, p.Connid)
 
 	default: //data
-		if _, ok := d.closedQueue[p.Senderid][p.Connid]; !ok {
-			if _, ok := d.packetQueue[p.Senderid][p.Connid][p.Seqid]; !ok {
-				d.packetQueue[p.Senderid][p.Connid][p.Seqid] = p
-			} // else drop duplicated packet
-		} // else drop closed packet
+		d.packetQueue.add(p)
 	}
-}
-
-// check if there is any alive upstream
-func (d *dialer) check() (alive bool) {
-	for _, v := range d.pool {
-		if v.proto == "udp" {
-			return true
-		}
-		if time.Now().Sub(v.alive) < d.keepalive {
-			return true
-		}
-	}
-	return false
 }

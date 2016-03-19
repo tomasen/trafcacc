@@ -1,7 +1,9 @@
 package trafcacc
 
 import (
+	"bytes"
 	"net"
+	"sync/atomic"
 	"time"
 )
 
@@ -10,29 +12,63 @@ type serverConn struct {
 	*ServeMux
 	senderid uint32
 	connid   uint32
+	seqid    uint32
+	rdr      bytes.Buffer
 }
 
 // Read reads data from the connection.
 // Read can be made to time out and return a Error with Timeout() == true
 // after a fixed time limit; see SetDeadline and SetReadDeadline.
 func (c *serverConn) Read(b []byte) (n int, err error) {
-	// TODO:
-	return
+	cond := c.packetQueue.cond(c.senderid, c.connid)
+	cond.L.Lock()
+	for !c.packetQueue.arrived(c.senderid, c.connid) {
+		cond.Wait()
+	}
+	for {
+		p := c.packetQueue.pop(c.senderid, c.connid)
+		if p == nil {
+			break
+		}
+		// buffered reader writer
+		c.rdr.Write(p.Buf)
+	}
+	cond.L.Unlock()
+
+	return c.rdr.Read(b)
 }
 
 // Write writes data to the connection.
 // Write can be made to time out and return a Error with Timeout() == true
 // after a fixed time limit; see SetDeadline and SetWriteDeadline.
 func (c *serverConn) Write(b []byte) (n int, err error) {
-	// TODO:
-	return
+	err = c.write(&packet{
+		Senderid: c.senderid,
+		Seqid:    atomic.AddUint32(&c.seqid, 1),
+		Connid:   c.connid,
+		Buf:      b,
+	})
+	if err == nil {
+		n = len(b)
+	}
+	return n, err
 }
 
 // Close closes the connection.
 // Any blocked Read or Write operations will be unblocked and return errors.
 func (c *serverConn) Close() error {
-	// TODO:
-	return nil
+	err := c.write(&packet{
+		Senderid: c.senderid,
+		Seqid:    atomic.AddUint32(&c.seqid, 1),
+		Connid:   c.connid,
+		Cmd:      closed,
+	})
+
+	// TODO: unblock read and write and return errors
+
+	go c.packetQueue.close(c.senderid, c.connid)
+
+	return err
 }
 
 // LocalAddr returns the local network address.
