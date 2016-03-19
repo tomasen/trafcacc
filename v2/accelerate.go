@@ -1,7 +1,6 @@
 package trafcacc
 
 import (
-	"fmt"
 	"io"
 	"net"
 	"strconv"
@@ -149,7 +148,6 @@ func pipe(dst io.Writer, src io.Reader, ch chan struct{}) {
 
 	_, err := io.Copy(dst, src)
 
-	fmt.Println("pipe end")
 	switch err {
 	case io.EOF:
 		err = nil
