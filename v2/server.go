@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/Sirupsen/logrus"
@@ -170,24 +171,16 @@ func (s *serv) packetHandler(conn net.Conn) {
 
 		switch p.Cmd {
 		case ping:
-			s.pool.cond.L.Lock()
-			u.alive = time.Now()
-			s.pool.cond.L.Unlock()
-			s.pool.cond.Broadcast()
+			atomic.StoreInt64(&u.alive, time.Now().UnixNano())
+			s.pool.Broadcast()
 
-			// reply ping
-			err := enc.Encode(&packet{Cmd: pong})
+			// reply
+			err := u.send(pong)
 			if err != nil {
-				logrus.WithFields(logrus.Fields{
-					"error": err,
-				}).Warnln("sever pong error")
 				break
 			}
-
 			continue
-
 		default:
-
 			s.push(&p)
 		}
 
@@ -216,7 +209,6 @@ func (s *serv) push(p *packet) {
 			})
 		}
 		if p.Cmd == data {
-
 			s.packetQueue.add(p)
 		}
 	}

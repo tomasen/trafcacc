@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Sirupsen/logrus"
@@ -18,45 +19,49 @@ type upstream struct {
 	encoder *gob.Encoder
 	decoder *gob.Decoder
 
-	alive time.Time
-	// mux     sync.RWMutex
+	alive int64
 }
 
-func (u *upstream) ping() error {
-	err := u.encoder.Encode(&packet{Cmd: ping})
+func (u *upstream) send(cmd cmd) error {
+	err := u.encoder.Encode(&packet{Cmd: cmd})
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"error": err,
-		}).Warnln("Dialer ping upstream error")
+			"cmd":   cmd,
+		}).Warnln("send upstream cmd error")
 	}
 	return err
 }
 
+func (u *upstream) isAlive() bool {
+	return keepalive > time.Duration(time.Now().UnixNano()-atomic.LoadInt64(&u.alive))
+}
+
 type streampool struct {
+	*sync.Cond
 	pool []*upstream
-	cond *sync.Cond
 }
 
 func newStreamPool() *streampool {
 	return &streampool{
 		// TODO: use RWMutex maybe?
-		cond: sync.NewCond(&sync.Mutex{}),
+		Cond: sync.NewCond(&sync.Mutex{}),
 	}
 }
 
 func (pool *streampool) append(u *upstream) {
-	pool.cond.L.Lock()
+	pool.L.Lock()
 	pool.pool = append(pool.pool, u)
-	pool.cond.L.Unlock()
-	pool.cond.Broadcast()
+	pool.L.Unlock()
+	pool.Broadcast()
 }
 
 func (pool *streampool) pickupstreams() []*upstream {
-	pool.cond.L.Lock()
-	defer pool.cond.L.Unlock()
+	pool.L.Lock()
+	defer pool.L.Unlock()
 	var alived []*upstream
 	for _, v := range pool.pool {
-		if keepalive > time.Now().Sub(v.alive) {
+		if v.isAlive() {
 			alived = append(alived, v)
 		}
 	}
@@ -79,7 +84,7 @@ func (pool *streampool) alive() bool {
 		if v.proto == "udp" {
 			return true
 		}
-		if time.Now().Sub(v.alive) < keepalive {
+		if v.isAlive() {
 			return true
 		}
 	}
@@ -87,20 +92,20 @@ func (pool *streampool) alive() bool {
 }
 
 func (pool *streampool) waitforalive() {
-	pool.cond.L.Lock()
+	pool.L.Lock()
 	for !pool.alive() {
-		pool.cond.Wait()
+		pool.Wait()
 	}
-	pool.cond.L.Unlock()
+	pool.L.Unlock()
 }
 
 func (pool *streampool) remove(proto, addr string) {
-	pool.cond.L.Lock()
+	pool.L.Lock()
 	for k, v := range pool.pool {
 		if v.proto == proto && v.addr == addr {
 			pool.pool = append(pool.pool[:k], pool.pool[k+1:]...)
 		}
 	}
-	pool.cond.L.Unlock()
-	pool.cond.Broadcast()
+	pool.L.Unlock()
+	pool.Broadcast()
 }

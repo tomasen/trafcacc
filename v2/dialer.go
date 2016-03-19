@@ -131,7 +131,7 @@ func (d *dialer) connect(u *upstream) {
 			u.decoder = gob.NewDecoder(conn)
 
 			// begin to ping
-			err = u.ping()
+			err = u.send(ping)
 			if err != nil {
 				conn.Close()
 				continue
@@ -149,20 +149,14 @@ func (d *dialer) connect(u *upstream) {
 					break
 				}
 				if p.Cmd == pong {
-
-					d.pool.cond.L.Lock()
 					// set alive only when received pong
-					u.alive = time.Now()
-					d.pool.cond.L.Unlock()
-					d.pool.cond.Broadcast()
+					atomic.StoreInt64(&u.alive, time.Now().UnixNano())
+					d.pool.Broadcast()
 
 					go func() {
 						<-time.After(time.Second)
-						err := u.ping()
+						err := u.send(ping)
 						if err != nil {
-							logrus.WithFields(logrus.Fields{
-								"error": err,
-							}).Warnln("dialer ping error")
 							// TODO: close connection?
 						}
 					}()
@@ -185,11 +179,11 @@ func (d *dialer) push(p *packet) {
 
 	switch p.Cmd {
 
-	case connected:
-		// TODO: maybe move d.packetQueue.create(p.Senderid, p.Connid) here?
-
 	case closed:
 		go d.packetQueue.close(p.Senderid, p.Connid)
+
+	case connected:
+		// TODO: maybe move d.packetQueue.create(p.Senderid, p.Connid) here?
 
 	default: //data
 		d.packetQueue.add(p)
