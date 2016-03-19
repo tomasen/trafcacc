@@ -77,7 +77,9 @@ func (pq *packetQueue) close(senderid, connid uint32) {
 
 		cond := q.cond
 		cond.L.Lock()
+		pq.mux.Lock()
 		pq.closed[senderid][connid] = struct{}{}
+		pq.mux.Unlock()
 		cond.L.Unlock()
 		cond.Broadcast()
 
