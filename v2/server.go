@@ -216,7 +216,9 @@ func (s *serv) push(p *packet) {
 				connid:   p.Connid,
 			})
 		}
-		fmt.Println("data push")
-		s.packetQueue.add(p)
+		if p.Cmd == data {
+			fmt.Println("data push")
+			s.packetQueue.add(p)
+		}
 	}
 }
