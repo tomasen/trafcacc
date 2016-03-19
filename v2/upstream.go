@@ -59,6 +59,7 @@ func (pool *streampool) append(u *upstream) {
 func (pool *streampool) pickupstreams() []*upstream {
 	pool.waitforalive()
 
+	// TODO: pick udp and tcp equally
 	pool.L.Lock()
 	defer pool.L.Unlock()
 	var alived []*upstream

@@ -23,13 +23,6 @@ func (d *dialerConn) Read(b []byte) (n int, err error) {
 
 	d.packetQueue.waitforArrived(d.identity, d.connid)
 
-	if d.packetQueue.isClosed(d.identity, d.connid) {
-		if d.rdr.Len() > 0 {
-			return d.rdr.Read(b)
-		}
-		return 0, io.EOF
-	}
-
 	for {
 		p := d.packetQueue.pop(d.identity, d.connid)
 		if p == nil {
@@ -37,6 +30,10 @@ func (d *dialerConn) Read(b []byte) (n int, err error) {
 		}
 		// buffered reader writer
 		d.rdr.Write(p.Buf)
+	}
+
+	if d.packetQueue.isClosed(d.identity, d.connid) && d.rdr.Len() == 0 {
+		return 0, io.EOF
 	}
 
 	return d.rdr.Read(b)
@@ -68,8 +65,8 @@ func (d *dialerConn) Close() error {
 	})
 
 	// TODO: unblock read and write and return errors
+	d.packetQueue.close(d.identity, d.connid)
 
-	go d.packetQueue.close(d.identity, d.connid)
 	return err
 }
 

@@ -2,7 +2,6 @@ package trafcacc
 
 import (
 	"encoding/gob"
-	"fmt"
 	"net"
 	"os"
 	"testing"
@@ -33,7 +32,7 @@ func testHandle(conn net.Conn) {
 			logrus.Warnln("server read error", err)
 			break
 		}
-		in *= 2
+		in++
 		err = enc.Encode(in)
 		if err != nil {
 			logrus.Fatalln("server write error", err)
@@ -75,14 +74,14 @@ func TestDial(t *testing.T) {
 			t.Fail()
 			break
 		}
-		fmt.Print(in, " ", out, " ")
-		if out != in*2 {
+
+		if out != in+1 {
 			t.Fail()
 			break
 		}
 
-		in = out * 2
-		if out > 10240 {
+		in = out + 1
+		if out > 2000 {
 			break
 		}
 	}

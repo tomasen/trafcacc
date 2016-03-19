@@ -24,13 +24,6 @@ func (c *serverConn) Read(b []byte) (n int, err error) {
 
 	c.packetQueue.waitforArrived(c.senderid, c.connid)
 
-	if c.packetQueue.isClosed(c.senderid, c.connid) {
-		if c.rdr.Len() > 0 {
-			return c.rdr.Read(b)
-		}
-		return 0, io.EOF
-	}
-
 	for {
 		p := c.packetQueue.pop(c.senderid, c.connid)
 		if p == nil {
@@ -39,6 +32,10 @@ func (c *serverConn) Read(b []byte) (n int, err error) {
 
 		// buffered reader writer
 		c.rdr.Write(p.Buf)
+	}
+
+	if c.packetQueue.isClosed(c.senderid, c.connid) && c.rdr.Len() <= 0 {
+		return 0, io.EOF
 	}
 
 	return c.rdr.Read(b)
@@ -72,8 +69,7 @@ func (c *serverConn) Close() error {
 
 	// TODO: unblock read and write and return errors
 
-	go c.packetQueue.close(c.senderid, c.connid)
-
+	c.packetQueue.close(c.senderid, c.connid)
 	return err
 }
 

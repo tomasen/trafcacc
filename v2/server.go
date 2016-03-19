@@ -191,28 +191,27 @@ func (s *serv) packetHandler(conn net.Conn) {
 }
 
 func (s *serv) push(p *packet) {
+	if s.packetQueue.create(p.Senderid, p.Connid) {
+		// it's new conn
+		s.write(&packet{
+			Senderid: p.Senderid,
+			Connid:   p.Connid,
+			Cmd:      connected,
+		})
+
+		s.handler.Serve(&serverConn{
+			ServeMux: s.ServeMux,
+			senderid: p.Senderid,
+			connid:   p.Connid,
+		})
+	}
+
 	switch p.Cmd {
 
-	case close:
-		s.packetQueue.close(p.Senderid, p.Connid)
-
 	case connect:
+	case close:
 		fallthrough
 	default: //data
-		if s.packetQueue.create(p.Senderid, p.Connid) {
-			// it's new conn
-
-			p.Cmd = connected
-			s.write(p)
-
-			s.handler.Serve(&serverConn{
-				ServeMux: s.ServeMux,
-				senderid: p.Senderid,
-				connid:   p.Connid,
-			})
-		}
-		if p.Cmd == data {
-			s.packetQueue.add(p)
-		}
+		s.packetQueue.add(p)
 	}
 }

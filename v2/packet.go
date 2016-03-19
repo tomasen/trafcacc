@@ -49,7 +49,6 @@ func (q *queue) isClosed() bool {
 
 func (q *queue) arrived() bool {
 	if q.isClosed() {
-		// TODO: ?? how to flush
 		return true
 	}
 
@@ -142,7 +141,7 @@ func (pq *packetQueue) waitforArrived(senderid, connid uint32) {
 		}
 		q.L.Unlock()
 	} else {
-		logrus.Fatalln("waitforArrived() wait on deteled queue")
+		logrus.Warnln("waitforArrived() wait on deteled/closed queue")
 	}
 }
 
@@ -166,12 +165,20 @@ func (pq *packetQueue) pop(senderid, connid uint32) *packet {
 	pq.mux.Unlock()
 
 	if exist && q != nil {
+		if q.isClosed() {
+			return nil
+		}
+
 		q.L.Lock()
 		defer q.L.Unlock()
 		if p, exist := q.queue[q.waitingSeqid]; exist {
 			delete(q.queue, q.waitingSeqid)
 			q.waitingSeqid++
 			q.Broadcast()
+			if p.Cmd == close || p.Cmd == closed {
+				pq.close(senderid, connid)
+				return nil
+			}
 			return p
 		}
 	}
