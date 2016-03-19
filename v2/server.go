@@ -18,7 +18,7 @@ type ServeMux struct {
 
 	pool *streampool
 
-	packetQueue *packetQueue
+	pqs *packetQueue
 }
 
 // Handler TODO: comment
@@ -37,8 +37,8 @@ func (f HandlerFunc) Serve(c net.Conn) {
 // NewServeMux allocates and returns a new ServeMux.
 func NewServeMux() *ServeMux {
 	return &ServeMux{
-		packetQueue: newPacketQueue(),
-		pool:        newStreamPool(),
+		pqs:  newPacketQueue(),
+		pool: newStreamPool(),
 	}
 }
 
@@ -191,7 +191,8 @@ func (s *serv) packetHandler(conn net.Conn) {
 }
 
 func (s *serv) push(p *packet) {
-	if s.packetQueue.create(p.Senderid, p.Connid) {
+
+	if s.pqs.create(p.Senderid, p.Connid) {
 		// it's new conn
 		s.write(&packet{
 			Senderid: p.Senderid,
@@ -212,6 +213,6 @@ func (s *serv) push(p *packet) {
 	case close:
 		fallthrough
 	default: //data
-		s.packetQueue.add(p)
+		s.pqs.add(p)
 	}
 }

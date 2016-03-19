@@ -18,15 +18,16 @@ type dialer struct {
 	identity uint32
 	atomicid uint32
 
-	packetQueue *packetQueue
+	pqd *packetQueue
 }
 
 // NewDialer TODO: comment
 func NewDialer() Dialer {
+
 	return &dialer{
-		pool:        newStreamPool(),
-		identity:    rand.Uint32(),
-		packetQueue: newPacketQueue(),
+		pool:     newStreamPool(),
+		identity: rand.Uint32(),
+		pqd:      newPacketQueue(),
 	}
 }
 
@@ -75,7 +76,7 @@ func (d *dialer) DialTimeout(timeout time.Duration) (net.Conn, error) {
 		connid: atomic.AddUint32(&d.atomicid, 1),
 	}
 
-	d.packetQueue.create(conn.identity, conn.connid)
+	d.pqd.create(conn.identity, conn.connid)
 
 	// send connect cmd
 	d.write(&packet{
@@ -108,6 +109,7 @@ func (d *dialer) write(p *packet) error {
 		// return error if all failed
 		return nil
 	}
+
 	return errors.New("dialer encoder error")
 }
 
@@ -175,17 +177,15 @@ func (d *dialer) connect(u *upstream) {
 
 // push packet to packet queue
 func (d *dialer) push(p *packet) {
-	// TODO:
 
 	switch p.Cmd {
-
 	case closed:
-		d.packetQueue.close(p.Senderid, p.Connid)
+		d.pqd.close(p.Senderid, p.Connid)
 
 	case connected:
-		// TODO: maybe move d.packetQueue.create(p.Senderid, p.Connid) here?
+		// TODO: maybe move d.pqd.create(p.Senderid, p.Connid) here?
 
 	default: //data
-		d.packetQueue.add(p)
+		d.pqd.add(p)
 	}
 }

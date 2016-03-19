@@ -22,19 +22,18 @@ type serverConn struct {
 // after a fixed time limit; see SetDeadline and SetReadDeadline.
 func (c *serverConn) Read(b []byte) (n int, err error) {
 
-	c.packetQueue.waitforArrived(c.senderid, c.connid)
+	c.pqs.waitforArrived(c.senderid, c.connid)
 
 	for {
-		p := c.packetQueue.pop(c.senderid, c.connid)
+		p := c.pqs.pop(c.senderid, c.connid)
 		if p == nil {
 			break
 		}
-
 		// buffered reader writer
 		c.rdr.Write(p.Buf)
 	}
 
-	if c.packetQueue.isClosed(c.senderid, c.connid) && c.rdr.Len() <= 0 {
+	if c.pqs.isClosed(c.senderid, c.connid) && c.rdr.Len() <= 0 {
 		return 0, io.EOF
 	}
 
@@ -54,6 +53,7 @@ func (c *serverConn) Write(b []byte) (n int, err error) {
 	if err == nil {
 		n = len(b)
 	}
+
 	return n, err
 }
 
@@ -69,7 +69,7 @@ func (c *serverConn) Close() error {
 
 	// TODO: unblock read and write and return errors
 
-	c.packetQueue.close(c.senderid, c.connid)
+	c.pqs.close(c.senderid, c.connid)
 	return err
 }
 

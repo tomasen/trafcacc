@@ -21,10 +21,9 @@ type dialerConn struct {
 // after a fixed time limit; see SetDeadline and SetReadDeadline.
 func (d *dialerConn) Read(b []byte) (n int, err error) {
 
-	d.packetQueue.waitforArrived(d.identity, d.connid)
-
+	d.pqd.waitforArrived(d.identity, d.connid)
 	for {
-		p := d.packetQueue.pop(d.identity, d.connid)
+		p := d.pqd.pop(d.identity, d.connid)
 		if p == nil {
 			break
 		}
@@ -32,7 +31,7 @@ func (d *dialerConn) Read(b []byte) (n int, err error) {
 		d.rdr.Write(p.Buf)
 	}
 
-	if d.packetQueue.isClosed(d.identity, d.connid) && d.rdr.Len() == 0 {
+	if d.pqd.isClosed(d.identity, d.connid) && d.rdr.Len() == 0 {
 		return 0, io.EOF
 	}
 
@@ -43,7 +42,6 @@ func (d *dialerConn) Read(b []byte) (n int, err error) {
 // Write can be made to time out and return a Error with Timeout() == true
 // after a fixed time limit; see SetDeadline and SetWriteDeadline.
 func (d *dialerConn) Write(b []byte) (n int, err error) {
-
 	err = d.write(&packet{
 		Seqid:  atomic.AddUint32(&d.seqid, 1),
 		Connid: d.connid,
@@ -65,7 +63,7 @@ func (d *dialerConn) Close() error {
 	})
 
 	// TODO: unblock read and write and return errors
-	d.packetQueue.close(d.identity, d.connid)
+	d.pqd.close(d.identity, d.connid)
 
 	return err
 }
