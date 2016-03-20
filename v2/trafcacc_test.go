@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -18,7 +19,7 @@ import (
 func TestMain(tm *testing.M) {
 	if len(os.Getenv("IPERF")) <= 0 {
 		go func() {
-			time.Sleep(time.Second * 5)
+			time.Sleep(time.Second * 8)
 			panic("case test took too long")
 		}()
 	}
@@ -67,14 +68,12 @@ func TestDial(t *testing.T) {
 	out, in := 1, 1
 
 	for {
-
 		err := enc.Encode(in)
 		if err != nil {
 			logrus.Fatalln("dialer write error", err)
 			t.Fail()
 			break
 		}
-
 		err = dec.Decode(&out)
 		if err != nil {
 			logrus.Warnln("dialer read error", err)
@@ -98,7 +97,6 @@ func TestDial(t *testing.T) {
 func TestHTTP(t *testing.T) {
 
 	Accelerate("tcp://:41601-41604", "tcp://bing.com:80", BACKEND)
-	time.Sleep(time.Second)
 	Accelerate("tcp://:50580", "tcp://127.0.0.1:41601-41604", FRONTEND)
 
 	client := &http.Client{}
@@ -107,16 +105,16 @@ func TestHTTP(t *testing.T) {
 	res, err := client.Do(req)
 	if err != nil {
 		t.Fail()
-		logrus.Fatalln(err)
 	}
 	robots, err := ioutil.ReadAll(res.Body)
 	res.Body.Close()
 	if err != nil {
 		t.Fail()
-		logrus.Fatalln(err, robots)
 	}
 
-	logrus.Print(string(robots))
+	if !strings.Contains(string(robots), "Sitemap: http://www.bing.com/") {
+		t.Fail()
+	}
 }
 
 func TestIPERF(t *testing.T) {

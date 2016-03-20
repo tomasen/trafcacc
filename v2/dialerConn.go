@@ -21,11 +21,10 @@ type dialerConn struct {
 // after a fixed time limit; see SetDeadline and SetReadDeadline.
 func (d *dialerConn) Read(b []byte) (n int, err error) {
 	if d.rdr.Len() > 0 {
-
 		return d.rdr.Read(b)
 	}
 
-	defer d.pqd.waitforArrived(d.identity, d.connid)
+	d.pqd.waitforArrived(d.identity, d.connid)
 	for {
 		p := d.pqd.pop(d.identity, d.connid)
 		if p == nil {

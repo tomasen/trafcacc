@@ -151,9 +151,7 @@ func (d *dialer) connect(u *upstream) {
 				}
 				if p.Cmd == pong {
 					// set alive only when received pong
-					d.pool.L.Lock()
 					atomic.StoreInt64(&u.alive, time.Now().UnixNano())
-					d.pool.L.Unlock()
 					d.pool.Broadcast()
 
 					go func() {

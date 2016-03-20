@@ -25,7 +25,7 @@ func (c *serverConn) Read(b []byte) (n int, err error) {
 		return c.rdr.Read(b)
 	}
 
-	defer c.pqs.waitforArrived(c.senderid, c.connid)
+	c.pqs.waitforArrived(c.senderid, c.connid)
 
 	for {
 		p := c.pqs.pop(c.senderid, c.connid)
