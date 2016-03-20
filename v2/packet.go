@@ -181,12 +181,9 @@ func (pq *packetQueue) pop(senderid, connid uint32) *packet {
 
 		q.L.Lock()
 		p, exist := q.queue[q.waitingSeqid]
-		q.L.Unlock()
 		if exist {
-			q.L.Lock()
 			delete(q.queue, q.waitingSeqid)
 			q.waitingSeqid++
-
 			q.L.Unlock()
 			defer q.Broadcast()
 			if p.Cmd == close || p.Cmd == closed {
@@ -195,6 +192,7 @@ func (pq *packetQueue) pop(senderid, connid uint32) *packet {
 			}
 			return p
 		}
+		q.L.Unlock()
 	}
 
 	return nil

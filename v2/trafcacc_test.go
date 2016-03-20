@@ -19,7 +19,7 @@ import (
 func TestMain(tm *testing.M) {
 	if len(os.Getenv("IPERF")) <= 0 {
 		go func() {
-			time.Sleep(time.Second * 8)
+			time.Sleep(time.Second * 10)
 			panic("case test took too long")
 		}()
 	}
@@ -114,6 +114,19 @@ func TestHTTP(t *testing.T) {
 
 	if !strings.Contains(string(robots), "Sitemap: http://www.bing.com/") {
 		t.Fail()
+	}
+}
+
+//
+func BenchmarkPacketQueueAdd(b *testing.B) {
+	var pqs = newPacketQueue()
+	pqs.create(1, 1)
+	pqs.create(1, 1)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		p := &packet{uint32(1), uint32(1), uint32(i), nil, data}
+		pqs.add(p)
+		pqs.add(p)
 	}
 }
 
