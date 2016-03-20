@@ -3,7 +3,6 @@ package trafcacc
 import (
 	"encoding/gob"
 	"errors"
-	"fmt"
 	"net"
 	"strconv"
 	"sync/atomic"
@@ -164,9 +163,7 @@ func (s *serv) packetHandler(conn net.Conn) {
 		p := packet{}
 		err := dec.Decode(&p)
 		if err != nil {
-			if logrus.GetLevel() >= logrus.WarnLevel {
-				logrus.Warnln("packetHandler() Decode err:", err)
-			}
+			logrus.Warnln("packetHandler() Decode err:", err)
 			break
 		}
 
@@ -176,16 +173,16 @@ func (s *serv) packetHandler(conn net.Conn) {
 			s.pool.Broadcast()
 
 			// reply
+
 			err := u.send(pong)
 			if err != nil {
 				break
 			}
 			continue
 		default:
-			fmt.Println("packetHandler0")
 
 			s.push(&p)
-			fmt.Println("packetHandler0 done")
+
 		}
 
 	}

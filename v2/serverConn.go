@@ -2,7 +2,6 @@ package trafcacc
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"net"
 	"sync/atomic"
@@ -26,10 +25,7 @@ func (c *serverConn) Read(b []byte) (n int, err error) {
 		return c.rdr.Read(b)
 	}
 
-	fmt.Println("s Read1")
-	defer fmt.Println("s Read done")
-
-	c.pqs.waitforArrived(c.senderid, c.connid)
+	defer c.pqs.waitforArrived(c.senderid, c.connid)
 
 	for {
 		p := c.pqs.pop(c.senderid, c.connid)
@@ -51,7 +47,6 @@ func (c *serverConn) Read(b []byte) (n int, err error) {
 		return 0, io.EOF
 	}
 
-	fmt.Println("s Read")
 	return c.rdr.Read(b)
 }
 
@@ -68,7 +63,7 @@ func (c *serverConn) Write(b []byte) (n int, err error) {
 	if err == nil {
 		n = len(b)
 	}
-	fmt.Println("s Write", n)
+
 	return n, err
 }
 
@@ -83,7 +78,7 @@ func (c *serverConn) Close() error {
 	})
 
 	// TODO: unblock read and write and return errors
-	fmt.Println("s Close", c.senderid, c.connid)
+
 	c.pqs.close(c.senderid, c.connid)
 	return err
 }

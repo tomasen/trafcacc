@@ -2,7 +2,6 @@ package trafcacc
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"net"
 	"sync/atomic"
@@ -22,14 +21,11 @@ type dialerConn struct {
 // after a fixed time limit; see SetDeadline and SetReadDeadline.
 func (d *dialerConn) Read(b []byte) (n int, err error) {
 	if d.rdr.Len() > 0 {
-		fmt.Println("d Read0")
+
 		return d.rdr.Read(b)
 	}
 
-	fmt.Println("d Read1")
-	defer fmt.Println("d Read done")
-
-	d.pqd.waitforArrived(d.identity, d.connid)
+	defer d.pqd.waitforArrived(d.identity, d.connid)
 	for {
 		p := d.pqd.pop(d.identity, d.connid)
 		if p == nil {
@@ -50,7 +46,6 @@ func (d *dialerConn) Read(b []byte) (n int, err error) {
 		return 0, io.EOF
 	}
 
-	fmt.Println("d Read")
 	return d.rdr.Read(b)
 }
 
@@ -67,7 +62,7 @@ func (d *dialerConn) Write(b []byte) (n int, err error) {
 	if err == nil {
 		n = len(b)
 	}
-	fmt.Println("d Write", seqid)
+
 	return n, err
 }
 
@@ -81,7 +76,7 @@ func (d *dialerConn) Close() error {
 	})
 
 	// TODO: unblock read and write and return errors
-	fmt.Println("d Close", d.identity, d.connid)
+
 	d.pqd.close(d.identity, d.connid)
 
 	return err

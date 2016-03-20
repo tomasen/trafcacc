@@ -135,13 +135,14 @@ func TestIPERF(t *testing.T) {
 		go iperfExec(cmd)
 
 		Accelerate("tcp://:41501-41504", "tcp://127.0.0.1:5203", BACKEND)
+		//Accelerate("tcp://:41501-41504", "tcp://54.222.184.194:5201", BACKEND)
 		time.Sleep(time.Second)
 		Accelerate("tcp://:50500", "tcp://127.0.0.1:41501-41504", FRONTEND)
 		time.Sleep(time.Second)
 
 		//iperfExec(exec.Command("iperf3", "-c", "127.0.0.1", "-p", "50500", "-R", "-P", "3"))
+		//iperfExec(exec.Command("iperf3", "-c", "127.0.0.1", "-p", "50500", "-b", "10M"))
 		iperfExec(exec.Command("iperf3", "-c", "127.0.0.1", "-p", "50500"))
-
 		pgid, err := syscall.Getpgid(cmd.Process.Pid)
 		if err == nil {
 			syscall.Kill(-pgid, 15) // note the minus sign

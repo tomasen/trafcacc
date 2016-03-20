@@ -2,7 +2,6 @@ package trafcacc
 
 import (
 	"encoding/gob"
-	"fmt"
 	"math/rand"
 	"net"
 	"sync"
@@ -102,10 +101,10 @@ func (pool *streampool) alive() bool {
 func (pool *streampool) waitforalive() {
 	pool.L.Lock()
 	for !pool.alive() {
-		fmt.Println("no alive")
+
 		pool.Wait()
 	}
-	fmt.Println("is alive")
+
 	pool.L.Unlock()
 }
 

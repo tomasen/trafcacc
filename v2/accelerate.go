@@ -1,7 +1,7 @@
 package trafcacc
 
 import (
-	"fmt"
+	"io"
 	"net"
 	"strconv"
 	"time"
@@ -150,32 +150,27 @@ func pipe(dst net.Conn, src net.Conn, ch chan struct{}) {
 		dst.Close()
 		src.Close()
 		ch <- struct{}{}
-		fmt.Println("pipe done")
 	}()
 
-	b := make([]byte, buffersize)
-	for {
-		n, err := src.Read(b)
-		if err != nil {
-			fmt.Println("pipe read err", n, err)
-			return
-		}
-		fmt.Println("pipe write n", n)
-		n, err = dst.Write(b[:n])
-		if err != nil {
-			fmt.Println("pipe write err", n, err)
-			return
-		}
-		fmt.Println("pipe write n", n, "done")
-	}
 	/*
-		n, err := io.Copy(dst, src)
+		b := make([]byte, buffersize)
+		for {
+			n, err := src.Read(b)
+			if err != nil {
+				logrus.Warnln("pipe read error", err)
+				return
+			}
+			n, err = dst.Write(b[:n])
+			if err != nil {
+				logrus.Warnln("pipe write error", err)
+				return
+			}
 
-		switch err {
-		case io.EOF:
-			err = nil
-			return
-		case nil:
-			return
-		}*/
+		}
+	*/
+	_, err := io.Copy(dst, src)
+	if err != nil {
+		logrus.Warnln("pipe copy error", err)
+		return
+	}
 }

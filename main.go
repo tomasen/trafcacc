@@ -8,12 +8,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tomasen/trafcacc/src"
+	trafcacc "github.com/tomasen/trafcacc/v2"
 
 	"net/http"
 	_ "net/http/pprof"
 
-	log "github.com/Sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 func main() {
@@ -31,15 +31,15 @@ func main() {
 	flag.Parse()
 
 	if *loglevel {
-		log.SetLevel(log.DebugLevel)
+		logrus.SetLevel(logrus.DebugLevel)
 	}
 
 	if len(*logfile) != 0 {
 		f, err := os.OpenFile(*logfile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0755)
 		if err != nil {
-			log.Infoln("log file open failed", err)
+			logrus.Infoln("log file open failed", err)
 		}
-		log.SetOutput(f)
+		logrus.SetOutput(f)
 	}
 
 	var t trafcacc.Trafcacc
@@ -52,14 +52,14 @@ func main() {
 
 	if len(*pprof) != 0 {
 		go func() {
-			log.Println(http.ListenAndServe(*pprof, nil))
+			logrus.Println(http.ListenAndServe(*pprof, nil))
 		}()
 	}
 
 	go func() {
 		ct := time.Tick(3 * time.Second)
 		for _ = range ct {
-			t.PrintStatus()
+			t.Status()
 		}
 	}()
 
