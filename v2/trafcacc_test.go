@@ -2,7 +2,9 @@ package trafcacc
 
 import (
 	"encoding/gob"
+	"io/ioutil"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"syscall"
@@ -22,7 +24,7 @@ func TestMain(tm *testing.M) {
 	os.Exit(tm.Run())
 }
 
-func testHandle(conn net.Conn) {
+func testDialServe0(conn net.Conn) {
 
 	enc := gob.NewEncoder(conn)
 	dec := gob.NewDecoder(conn)
@@ -46,7 +48,7 @@ func testHandle(conn net.Conn) {
 
 func TestDial(t *testing.T) {
 	srv := NewServeMux()
-	srv.HandleFunc("tcp://:51010-51020", testHandle)
+	srv.HandleFunc("tcp://:51010-51020", testDialServe0)
 
 	d := NewDialer()
 	d.Setup("tcp://127.0.0.1:51010-51020")
@@ -92,7 +94,31 @@ func TestDial(t *testing.T) {
 	conn.Close()
 }
 
-func TestIperfTCP(t *testing.T) {
+func TestHTTP(t *testing.T) {
+
+	Accelerate("tcp://:41601-41604", "tcp://bing.com:80", BACKEND)
+	time.Sleep(time.Second)
+	Accelerate("tcp://:50580", "tcp://127.0.0.1:41601-41604", FRONTEND)
+
+	client := &http.Client{}
+	req, _ := http.NewRequest("GET", "http://127.0.0.1:50580/robots.txt", nil)
+	req.Host = "bing.com"
+	res, err := client.Do(req)
+	if err != nil {
+		t.Fail()
+		logrus.Fatalln(err)
+	}
+	robots, err := ioutil.ReadAll(res.Body)
+	res.Body.Close()
+	if err != nil {
+		t.Fail()
+		logrus.Fatalln(err, robots)
+	}
+
+	logrus.Print(string(robots))
+}
+
+func TestIPERF(t *testing.T) {
 	logrus.SetLevel(logrus.DebugLevel)
 
 	if len(os.Getenv("IPERF")) != 0 {

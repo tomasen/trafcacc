@@ -1,6 +1,7 @@
 package trafcacc
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -55,6 +56,8 @@ func (q *queue) arrived() bool {
 	if _, exist := q.queue[q.waitingSeqid]; exist {
 		return true
 	}
+
+	logrus.Warnln("queue growing", len(q.queue), q.waitingSeqid)
 
 	return false
 }
@@ -122,6 +125,7 @@ func (pq *packetQueue) add(p *packet) {
 		if p.Seqid >= q.waitingSeqid && !ok {
 			q.queue[p.Seqid] = p
 			defer q.Broadcast()
+			fmt.Println("add", p.Senderid, p.Connid, q.waitingSeqid, p.Seqid)
 		}
 		q.L.Unlock()
 	} else {
@@ -173,9 +177,10 @@ func (pq *packetQueue) pop(senderid, connid uint32) *packet {
 	pq.mux.Unlock()
 
 	if exist && q != nil {
-		if q.isClosed() {
-			return nil
-		}
+		// TODO: closed?
+		// if q.isClosed() {
+		// 	return nil
+		// }
 
 		q.L.Lock()
 		p, exist := q.queue[q.waitingSeqid]
@@ -184,8 +189,9 @@ func (pq *packetQueue) pop(senderid, connid uint32) *packet {
 			q.L.Lock()
 			delete(q.queue, q.waitingSeqid)
 			q.waitingSeqid++
+			fmt.Println("pop", senderid, connid, q.waitingSeqid)
 			q.L.Unlock()
-			q.Broadcast()
+			defer q.Broadcast()
 			if p.Cmd == close || p.Cmd == closed {
 				pq.close(senderid, connid)
 				return nil

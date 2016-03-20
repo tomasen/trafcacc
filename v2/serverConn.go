@@ -22,6 +22,12 @@ type serverConn struct {
 // Read can be made to time out and return a Error with Timeout() == true
 // after a fixed time limit; see SetDeadline and SetReadDeadline.
 func (c *serverConn) Read(b []byte) (n int, err error) {
+	if c.rdr.Len() > 0 {
+		return c.rdr.Read(b)
+	}
+
+	fmt.Println("s Read1")
+	defer fmt.Println("s Read done")
 
 	c.pqs.waitforArrived(c.senderid, c.connid)
 
@@ -77,7 +83,7 @@ func (c *serverConn) Close() error {
 	})
 
 	// TODO: unblock read and write and return errors
-
+	fmt.Println("s Close", c.senderid, c.connid)
 	c.pqs.close(c.senderid, c.connid)
 	return err
 }

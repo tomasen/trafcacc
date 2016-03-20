@@ -21,6 +21,14 @@ type dialerConn struct {
 // Read can be made to time out and return a Error with Timeout() == true
 // after a fixed time limit; see SetDeadline and SetReadDeadline.
 func (d *dialerConn) Read(b []byte) (n int, err error) {
+	if d.rdr.Len() > 0 {
+		fmt.Println("d Read0")
+		return d.rdr.Read(b)
+	}
+
+	fmt.Println("d Read1")
+	defer fmt.Println("d Read done")
+
 	d.pqd.waitforArrived(d.identity, d.connid)
 	for {
 		p := d.pqd.pop(d.identity, d.connid)
@@ -50,15 +58,16 @@ func (d *dialerConn) Read(b []byte) (n int, err error) {
 // Write can be made to time out and return a Error with Timeout() == true
 // after a fixed time limit; see SetDeadline and SetWriteDeadline.
 func (d *dialerConn) Write(b []byte) (n int, err error) {
+	seqid := atomic.AddUint32(&d.seqid, 1)
 	err = d.write(&packet{
-		Seqid:  atomic.AddUint32(&d.seqid, 1),
+		Seqid:  seqid,
 		Connid: d.connid,
 		Buf:    b,
 	})
 	if err == nil {
 		n = len(b)
 	}
-	fmt.Println("d Write", n)
+	fmt.Println("d Write", seqid)
 	return n, err
 }
 
@@ -72,6 +81,7 @@ func (d *dialerConn) Close() error {
 	})
 
 	// TODO: unblock read and write and return errors
+	fmt.Println("d Close", d.identity, d.connid)
 	d.pqd.close(d.identity, d.connid)
 
 	return err

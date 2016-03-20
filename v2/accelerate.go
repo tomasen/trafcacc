@@ -1,6 +1,7 @@
 package trafcacc
 
 import (
+	"fmt"
 	"io"
 	"net"
 	"strconv"
@@ -40,7 +41,8 @@ func (t *trafcacc) Serve(conn net.Conn) {
 
 	ch := make(chan struct{}, 2)
 	go pipe(conn, uc, ch)
-	go pipe(uc, conn, ch)
+	pipe(uc, conn, ch)
+	<-ch
 	<-ch
 }
 
@@ -121,10 +123,12 @@ func (t *trafcacc) acceptTCP(ln net.Listener) {
 					"error": err,
 				}).Fatalln("frontend dial to address error")
 			}
+			defer up.Close()
 
 			ch := make(chan struct{}, 2)
 			go pipe(conn, up, ch)
-			go pipe(up, conn, ch)
+			pipe(up, conn, ch)
+			<-ch
 			<-ch
 		}()
 	}
@@ -141,13 +145,15 @@ func (t *trafcacc) roleString() string {
 }
 
 // pipe upstream and downstream
-func pipe(dst io.Writer, src io.Reader, ch chan struct{}) {
+func pipe(dst net.Conn, src net.Conn, ch chan struct{}) {
 	defer func() {
+		dst.Close()
+		// src.Close()
 		ch <- struct{}{}
 	}()
 
-	_, err := io.Copy(dst, src)
-
+	n, err := io.Copy(dst, src)
+	fmt.Println("pipe done", n, err)
 	switch err {
 	case io.EOF:
 		err = nil
