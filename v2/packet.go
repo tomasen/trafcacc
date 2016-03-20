@@ -125,7 +125,7 @@ func (pq *packetQueue) add(p *packet) {
 		if p.Seqid >= q.waitingSeqid && !ok {
 			q.queue[p.Seqid] = p
 			defer q.Broadcast()
-			fmt.Println("add", p.Senderid, p.Connid, q.waitingSeqid, p.Seqid)
+			fmt.Println("add", p.Senderid, p.Connid, q.waitingSeqid, p.Seqid, p.Cmd)
 		}
 		q.L.Unlock()
 	} else {
@@ -189,7 +189,7 @@ func (pq *packetQueue) pop(senderid, connid uint32) *packet {
 			q.L.Lock()
 			delete(q.queue, q.waitingSeqid)
 			q.waitingSeqid++
-			fmt.Println("pop", senderid, connid, q.waitingSeqid)
+			fmt.Println("pop", senderid, connid, q.waitingSeqid, p.Seqid, p.Cmd)
 			q.L.Unlock()
 			defer q.Broadcast()
 			if p.Cmd == close || p.Cmd == closed {

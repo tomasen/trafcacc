@@ -3,6 +3,7 @@ package trafcacc
 import (
 	"encoding/gob"
 	"errors"
+	"fmt"
 	"math/rand"
 	"net"
 	"strconv"
@@ -92,18 +93,21 @@ func (d *dialer) write(p *packet) error {
 	successed := false
 
 	// TODO: wait for upstreams avalible?
+	fmt.Println("d write seqid:", p.Seqid, p.Cmd, p.Connid)
+	defer fmt.Println("d write seqid:", p.Seqid, p.Cmd, p.Connid, "done")
 
 	// pick upstream tunnel and send packet
 	for _, u := range d.pool.pickupstreams() {
+		fmt.Println("d write seqid:", p.Seqid, p.Cmd, p.Connid, "stream0", len(p.Buf))
 		err := u.encoder.Encode(&p)
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
 				"error": err,
 			}).Warnln("Dialer encode packet to upstream errror")
 		} else {
-
 			successed = true
 		}
+		fmt.Println("d write seqid:", p.Seqid, p.Cmd, p.Connid, "stream1")
 	}
 	if successed {
 		// return error if all failed
@@ -152,7 +156,9 @@ func (d *dialer) connect(u *upstream) {
 				}
 				if p.Cmd == pong {
 					// set alive only when received pong
+					d.pool.L.Lock()
 					atomic.StoreInt64(&u.alive, time.Now().UnixNano())
+					d.pool.L.Unlock()
 					d.pool.Broadcast()
 
 					go func() {

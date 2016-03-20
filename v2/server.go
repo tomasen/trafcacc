@@ -3,6 +3,7 @@ package trafcacc
 import (
 	"encoding/gob"
 	"errors"
+	"fmt"
 	"net"
 	"strconv"
 	"sync/atomic"
@@ -181,7 +182,10 @@ func (s *serv) packetHandler(conn net.Conn) {
 			}
 			continue
 		default:
+			fmt.Println("packetHandler0")
+
 			s.push(&p)
+			fmt.Println("packetHandler0 done")
 		}
 
 	}

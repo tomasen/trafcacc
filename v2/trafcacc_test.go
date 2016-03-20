@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"syscall"
 	"testing"
 	"time"
@@ -121,6 +122,14 @@ func TestHTTP(t *testing.T) {
 func TestIPERF(t *testing.T) {
 	logrus.SetLevel(logrus.DebugLevel)
 
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	signal.Notify(c, syscall.SIGTERM)
+	go func() {
+		<-c
+		panic(nil)
+	}()
+
 	if len(os.Getenv("IPERF")) != 0 {
 		cmd := exec.Command("iperf3", "-s", "", "-p", "5203")
 		go iperfExec(cmd)
@@ -128,6 +137,7 @@ func TestIPERF(t *testing.T) {
 		Accelerate("tcp://:41501-41504", "tcp://127.0.0.1:5203", BACKEND)
 		time.Sleep(time.Second)
 		Accelerate("tcp://:50500", "tcp://127.0.0.1:41501-41504", FRONTEND)
+		time.Sleep(time.Second)
 
 		//iperfExec(exec.Command("iperf3", "-c", "127.0.0.1", "-p", "50500", "-R", "-P", "3"))
 		iperfExec(exec.Command("iperf3", "-c", "127.0.0.1", "-p", "50500"))

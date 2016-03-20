@@ -11,7 +11,7 @@ import (
 
 const (
 	buffersize = 4096 * 4
-	keepalive  = time.Second * 3
+	keepalive  = time.Second * 30
 
 	dialtimeout = 15
 	readtimeout = 30

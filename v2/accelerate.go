@@ -2,7 +2,6 @@ package trafcacc
 
 import (
 	"fmt"
-	"io"
 	"net"
 	"strconv"
 	"time"
@@ -38,10 +37,11 @@ func (t *trafcacc) Serve(conn net.Conn) {
 		}).Errorln("backend dial error")
 		return
 	}
+	defer conn.Close()
 
 	ch := make(chan struct{}, 2)
 	go pipe(conn, uc, ch)
-	pipe(uc, conn, ch)
+	go pipe(uc, conn, ch)
 	<-ch
 	<-ch
 }
@@ -126,8 +126,8 @@ func (t *trafcacc) acceptTCP(ln net.Listener) {
 			defer up.Close()
 
 			ch := make(chan struct{}, 2)
-			go pipe(conn, up, ch)
-			pipe(up, conn, ch)
+			go pipe(up, conn, ch)
+			pipe(conn, up, ch)
 			<-ch
 			<-ch
 		}()
@@ -148,17 +148,34 @@ func (t *trafcacc) roleString() string {
 func pipe(dst net.Conn, src net.Conn, ch chan struct{}) {
 	defer func() {
 		dst.Close()
-		// src.Close()
+		src.Close()
 		ch <- struct{}{}
+		fmt.Println("pipe done")
 	}()
 
-	n, err := io.Copy(dst, src)
-	fmt.Println("pipe done", n, err)
-	switch err {
-	case io.EOF:
-		err = nil
-		return
-	case nil:
-		return
+	b := make([]byte, buffersize)
+	for {
+		n, err := src.Read(b)
+		if err != nil {
+			fmt.Println("pipe read err", n, err)
+			return
+		}
+		fmt.Println("pipe write n", n)
+		n, err = dst.Write(b[:n])
+		if err != nil {
+			fmt.Println("pipe write err", n, err)
+			return
+		}
+		fmt.Println("pipe write n", n, "done")
 	}
+	/*
+		n, err := io.Copy(dst, src)
+
+		switch err {
+		case io.EOF:
+			err = nil
+			return
+		case nil:
+			return
+		}*/
 }
