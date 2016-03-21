@@ -208,9 +208,11 @@ func (s *serv) push(p *packet) {
 	switch p.Cmd {
 
 	case connect:
-	case close:
-		fallthrough
-	default: //data
+	case close, data:
 		s.pqs.add(p)
+	default:
+		logrus.WithFields(logrus.Fields{
+			"Cmd": p.Cmd,
+		}).Warnln("unexpected Cmd in packet")
 	}
 }

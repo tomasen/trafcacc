@@ -185,13 +185,15 @@ func (d *dialer) connect(u *upstream) {
 func (d *dialer) push(p *packet) {
 
 	switch p.Cmd {
-	case closed:
-		d.pqd.close(p.Senderid, p.Connid)
-
 	case connected:
 		// TODO: maybe move d.pqd.create(p.Senderid, p.Connid) here?
 
-	default: //data
+	case data, closed: //data
 		d.pqd.add(p)
+
+	default:
+		logrus.WithFields(logrus.Fields{
+			"Cmd": p.Cmd,
+		}).Warnln("unexpected Cmd in packet")
 	}
 }

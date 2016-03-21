@@ -11,17 +11,15 @@ import (
 
 // Accelerate traffic by setup front-end dialer and back-end server
 func Accelerate(l, u string, role tag) Trafcacc {
-
 	t := &trafcacc{role: role}
 	t.accelerate(l, u)
-
 	return t
 }
 
 // tag is type of role: BACKEND or FRONTEND
 type tag bool
 
-// BACKEND FRONTEND role tag
+// BACKEND FRONTEND tag the role that instance played with
 const (
 	BACKEND  tag = true
 	FRONTEND tag = false
