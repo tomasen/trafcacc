@@ -21,7 +21,7 @@ func (t *trafcacc) Status() {
 	logrus.WithFields(fields).Infoln(t.roleString(), "status")
 }
 
-func acceptTCP(ln net.Listener, f HandlerFunc) {
+func acceptTCP(ln net.Listener, f func(net.Conn)) {
 	defer ln.Close()
 	var tempDelay time.Duration
 	for {

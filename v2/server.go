@@ -27,10 +27,10 @@ type Handler interface {
 }
 
 // HandlerFunc TODO: comment
-type HandlerFunc func(net.Conn)
+type handlerFunc func(net.Conn)
 
 // Serve TODO: comment
-func (f HandlerFunc) Serve(c net.Conn) {
+func (f handlerFunc) Serve(c net.Conn) {
 	f(c)
 }
 
@@ -45,7 +45,7 @@ func NewServeMux() *ServeMux {
 // HandleFunc registers the handler for the given addresses
 // that back-end server listened to
 func (mux *ServeMux) HandleFunc(listento string, handler func(net.Conn)) {
-	mux.Handle(listento, HandlerFunc(handler))
+	mux.Handle(listento, handlerFunc(handler))
 }
 
 // Handle registers the handler for the given addresses
