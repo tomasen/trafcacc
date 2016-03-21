@@ -77,11 +77,16 @@ func (c *conn) Write(b []byte) (n int, err error) {
 // Close closes the connection.
 // Any blocked Read or Write operations will be unblocked and return errors.
 func (c *conn) Close() error {
+
+	cmd := closed
+	if c.role() == "dialer" {
+		cmd = close
+	}
 	err := c.write(&packet{
 		Senderid: c.senderid,
 		Seqid:    atomic.AddUint32(&c.seqid, 1),
 		Connid:   c.connid,
-		Cmd:      closed,
+		Cmd:      cmd,
 	})
 
 	// TODO: unblock read and write and return errors

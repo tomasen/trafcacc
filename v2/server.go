@@ -61,7 +61,7 @@ func (mux *ServeMux) Handle(listento string, handler Handler) {
 }
 
 func (mux *ServeMux) pq() *packetQueue {
-		return mux.pqs
+	return mux.pqs
 }
 
 func (mux *ServeMux) role() string {
@@ -113,7 +113,19 @@ func (s *serv) listen() {
 		}
 		go acceptTCP(ln, s.packetHandler)
 	case udp:
-		// TODO udp
+		udpaddr, err := net.ResolveUDPAddr("udp", s.addr)
+		if err != nil {
+			logrus.Fatalln("net.ResolveUDPAddr error", s.addr, err)
+		}
+		udpconn, err := net.ListenUDP("udp", udpaddr)
+		if err != nil {
+			logrus.Fatalln("net.ListenUDP error", udpaddr, err)
+		}
+		go func() {
+			for {
+				s.packetHandler(udpconn)
+			}
+		}()
 	}
 }
 
@@ -177,7 +189,7 @@ func (s *serv) push(p *packet) {
 		})
 
 		s.handler.Serve(&conn{
-			pconn: s.ServeMux,
+			pconn:    s.ServeMux,
 			senderid: p.Senderid,
 			connid:   p.Connid,
 		})
@@ -191,6 +203,6 @@ func (s *serv) push(p *packet) {
 	default:
 		logrus.WithFields(logrus.Fields{
 			"Cmd": p.Cmd,
-		}).Warnln("unexpected Cmd in packet")
+		}).Warnln("unexpected Cmd in packet on server", closed)
 	}
 }
