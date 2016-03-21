@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	trafcacc "github.com/tomasen/trafcacc/v2"
+	"github.com/tomasen/trafcacc/v2"
 
 	"net/http"
 	_ "net/http/pprof"

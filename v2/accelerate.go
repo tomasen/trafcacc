@@ -9,6 +9,15 @@ import (
 	"github.com/Sirupsen/logrus"
 )
 
+// Accelerate traffic by setup front-end dialer and back-end server
+func Accelerate(l, u string, role tag) Trafcacc {
+
+	t := &trafcacc{role: role}
+	t.accelerate(l, u)
+
+	return t
+}
+
 // tag is type of role: BACKEND or FRONTEND
 type tag bool
 

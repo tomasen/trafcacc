@@ -12,15 +12,6 @@ import (
 	"github.com/Sirupsen/logrus"
 )
 
-type dialer struct {
-	pool *streampool
-
-	identity uint32
-	atomicid uint32
-
-	pqd *packetQueue
-}
-
 // NewDialer TODO: comment
 func NewDialer() Dialer {
 
@@ -29,6 +20,22 @@ func NewDialer() Dialer {
 		identity: rand.Uint32(),
 		pqd:      newPacketQueue(),
 	}
+}
+
+// Dialer TODO: comment
+type Dialer interface {
+	Setup(server string)
+	Dial() (net.Conn, error)
+	DialTimeout(timeout time.Duration) (net.Conn, error)
+}
+
+type dialer struct {
+	pool *streampool
+
+	identity uint32
+	atomicid uint32
+
+	pqd *packetQueue
 }
 
 // Setup upstream servers
