@@ -17,7 +17,7 @@ type endpoint struct {
 	portEnd   int // port end
 }
 
-// 分析输入的控制参数
+// parse 分析输入的控制参数
 func parse(s string) (e []endpoint) {
 	x := strings.Split(s, ",")
 	if len(x) < 1 {
@@ -43,26 +43,31 @@ func parse(s string) (e []endpoint) {
 		}
 		e0.host = h
 
-		x1 := strings.Split(p, "-")
-		if len(x1) < 1 {
-			log.Fatal("argument port", p, "error:", err)
-		}
-
-		e0.portBegin, err = strconv.Atoi(x1[0])
-		if err != nil {
-			log.Fatal("argument port begin ", x1[0], "error:", err)
-		}
-
-		if len(x1) < 2 {
-			e0.portEnd = e0.portBegin
-		} else {
-			e0.portEnd, err = strconv.Atoi(x1[1])
-			if err != nil {
-				log.Fatal("argument port end ", x1[1], "error:", err)
-			}
-		}
-
+		e0.parseports(p)
 		e = append(e, e0)
 	}
 	return e
+}
+
+func (e0 *endpoint) parseports(p string) {
+	var err error
+
+	x1 := strings.Split(p, "-")
+	if len(x1) < 1 {
+		log.Fatal("argument port", p)
+	}
+
+	e0.portBegin, err = strconv.Atoi(x1[0])
+	if err != nil {
+		log.Fatal("argument port begin ", x1[0], "error:", err)
+	}
+
+	if len(x1) < 2 {
+		e0.portEnd = e0.portBegin
+	} else {
+		e0.portEnd, err = strconv.Atoi(x1[1])
+		if err != nil {
+			log.Fatal("argument port end ", x1[1], "error:", err)
+		}
+	}
 }
