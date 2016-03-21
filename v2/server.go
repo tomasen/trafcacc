@@ -60,6 +60,14 @@ func (mux *ServeMux) Handle(listento string, handler Handler) {
 	}
 }
 
+func (mux *ServeMux) pq() *packetQueue {
+		return mux.pqs
+}
+
+func (mux *ServeMux) role() string {
+	return "server"
+}
+
 func (mux *ServeMux) write(p *packet) error {
 	successed := false
 
@@ -152,9 +160,7 @@ func (s *serv) packetHandler(conn net.Conn) {
 			}
 			continue
 		default:
-
-			s.push(&p)
-
+			go s.push(&p)
 		}
 
 	}
@@ -170,8 +176,8 @@ func (s *serv) push(p *packet) {
 			Cmd:      connected,
 		})
 
-		s.handler.Serve(&serverConn{
-			ServeMux: s.ServeMux,
+		s.handler.Serve(&conn{
+			pconn: s.ServeMux,
 			senderid: p.Senderid,
 			connid:   p.Connid,
 		})

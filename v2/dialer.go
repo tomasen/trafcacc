@@ -78,12 +78,13 @@ func (d *dialer) DialTimeout(timeout time.Duration) (net.Conn, error) {
 		}
 	}
 
-	conn := &dialerConn{
-		dialer: d,
+	conn := &conn{
+		pconn: d,
+		senderid: d.identity,
 		connid: atomic.AddUint32(&d.atomicid, 1),
 	}
 
-	d.pqd.create(conn.identity, conn.connid)
+	d.pqd.create(conn.senderid, conn.connid)
 
 	// send connect cmd
 	d.write(&packet{
@@ -92,6 +93,14 @@ func (d *dialer) DialTimeout(timeout time.Duration) (net.Conn, error) {
 	})
 
 	return conn, nil
+}
+
+func (d *dialer) pq() *packetQueue{
+	return d.pqd
+}
+
+func (d *dialer) role() string {
+	return "dialer"
 }
 
 func (d *dialer) write(p *packet) error {
@@ -171,7 +180,7 @@ func (d *dialer) connect(u *upstream) {
 					continue
 				}
 
-				d.push(&p)
+				go d.push(&p)
 			}
 			conn.Close()
 			u.conn = nil

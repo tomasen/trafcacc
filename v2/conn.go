@@ -8,9 +8,16 @@ import (
 	"time"
 )
 
-// client side conn
-type serverConn struct {
-	*ServeMux
+// packet conn
+type pconn interface {
+	pq() *packetQueue
+	write(*packet) error
+	role() string
+}
+
+// conn
+type conn struct {
+	pconn
 	senderid uint32
 	connid   uint32
 	seqid    uint32
@@ -20,15 +27,15 @@ type serverConn struct {
 // Read reads data from the connection.
 // Read can be made to time out and return a Error with Timeout() == true
 // after a fixed time limit; see SetDeadline and SetReadDeadline.
-func (c *serverConn) Read(b []byte) (n int, err error) {
+func (c *conn) Read(b []byte) (n int, err error) {
 	if c.rdr.Len() > 0 {
 		return c.rdr.Read(b)
 	}
 
-	c.pqs.waitforArrived(c.senderid, c.connid)
+	c.pq().waitforArrived(c.senderid, c.connid)
 
 	for {
-		p := c.pqs.pop(c.senderid, c.connid)
+		p := c.pq().pop(c.senderid, c.connid)
 		if p == nil {
 			break
 		}
@@ -43,7 +50,7 @@ func (c *serverConn) Read(b []byte) (n int, err error) {
 		}
 	}
 
-	if c.pqs.isClosed(c.senderid, c.connid) && c.rdr.Len() <= 0 {
+	if c.pq().isClosed(c.senderid, c.connid) && c.rdr.Len() <= 0 {
 		return 0, io.EOF
 	}
 
@@ -53,7 +60,7 @@ func (c *serverConn) Read(b []byte) (n int, err error) {
 // Write writes data to the connection.
 // Write can be made to time out and return a Error with Timeout() == true
 // after a fixed time limit; see SetDeadline and SetWriteDeadline.
-func (c *serverConn) Write(b []byte) (n int, err error) {
+func (c *conn) Write(b []byte) (n int, err error) {
 	err = c.write(&packet{
 		Senderid: c.senderid,
 		Seqid:    atomic.AddUint32(&c.seqid, 1),
@@ -69,7 +76,7 @@ func (c *serverConn) Write(b []byte) (n int, err error) {
 
 // Close closes the connection.
 // Any blocked Read or Write operations will be unblocked and return errors.
-func (c *serverConn) Close() error {
+func (c *conn) Close() error {
 	err := c.write(&packet{
 		Senderid: c.senderid,
 		Seqid:    atomic.AddUint32(&c.seqid, 1),
@@ -79,18 +86,18 @@ func (c *serverConn) Close() error {
 
 	// TODO: unblock read and write and return errors
 
-	c.pqs.close(c.senderid, c.connid)
+	c.pq().close(c.senderid, c.connid)
 	return err
 }
 
 // LocalAddr returns the local network address.
-func (c *serverConn) LocalAddr() net.Addr {
+func (c *conn) LocalAddr() net.Addr {
 	// TODO:
 	return nil
 }
 
 // RemoteAddr returns the remote network address.
-func (c *serverConn) RemoteAddr() net.Addr {
+func (c *conn) RemoteAddr() net.Addr {
 	// TODO:
 	return nil
 }
@@ -108,14 +115,14 @@ func (c *serverConn) RemoteAddr() net.Addr {
 // the deadline after successful Read or Write calls.
 //
 // A zero value for t means I/O operations will not time out.
-func (c *serverConn) SetDeadline(t time.Time) error {
+func (c *conn) SetDeadline(t time.Time) error {
 	// TODO:
 	return nil
 }
 
 // SetReadDeadline sets the deadline for future Read calls.
 // A zero value for t means Read will not time out.
-func (c *serverConn) SetReadDeadline(t time.Time) error {
+func (c *conn) SetReadDeadline(t time.Time) error {
 	// TODO:
 	return nil
 }
@@ -124,7 +131,7 @@ func (c *serverConn) SetReadDeadline(t time.Time) error {
 // Even if write times out, it may return n > 0, indicating that
 // some of the data was successfully written.
 // A zero value for t means Write will not time out.
-func (c *serverConn) SetWriteDeadline(t time.Time) error {
+func (c *conn) SetWriteDeadline(t time.Time) error {
 	// TODO:
 	return nil
 }
