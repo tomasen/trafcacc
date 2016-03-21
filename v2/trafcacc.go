@@ -13,3 +13,8 @@ const (
 	//dialtimeout = 15
 	//readtimeout = 30
 )
+
+const (
+	tcp = "tcp"
+	udp = "udp"
+)

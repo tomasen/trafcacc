@@ -31,8 +31,8 @@ func parse(s string) (e []endpoint) {
 			log.Fatal("argument error", s0)
 		}
 		switch x0[0] {
-		case "tcp":
-		case "udp":
+		case tcp:
+		case udp:
 		default:
 			log.Fatal("unknown proto:", x0[0])
 		}

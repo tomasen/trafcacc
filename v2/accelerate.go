@@ -4,7 +4,6 @@ import (
 	"io"
 	"net"
 	"strconv"
-	"time"
 
 	"github.com/Sirupsen/logrus"
 )
@@ -34,6 +33,7 @@ type trafcacc struct {
 // Trafcacc give a interface to query running status
 type Trafcacc interface {
 	Status()
+	WaitforAlive()
 }
 
 func (t *trafcacc) Serve(conn net.Conn) {
@@ -88,7 +88,22 @@ func (t *trafcacc) accelerate(l, u string) {
 					}).Fatalln("frontend listen to address error")
 				}
 
-				go t.acceptTCP(ln)
+				go acceptTCP(ln, func(conn net.Conn) {
+					up, err := t.dialer.Dial()
+					if err != nil {
+						// handle error
+						logrus.WithFields(logrus.Fields{
+							"error": err,
+						}).Fatalln("frontend dial to address error")
+					}
+					defer up.Close()
+
+					ch := make(chan struct{}, 2)
+					go pipe(up, conn, ch)
+					pipe(conn, up, ch)
+					<-ch
+					<-ch
+				})
 				break
 			}
 		}
@@ -96,49 +111,8 @@ func (t *trafcacc) accelerate(l, u string) {
 	}
 }
 
-func (t *trafcacc) waitforAlive() {
+func (t *trafcacc) WaitforAlive() {
 	// TODO:
-}
-
-func (t *trafcacc) acceptTCP(ln net.Listener) {
-	defer ln.Close()
-	var tempDelay time.Duration
-	for {
-		conn, err := ln.Accept()
-		if err != nil {
-			if ne, ok := err.(net.Error); ok && ne.Temporary() {
-				if tempDelay == 0 {
-					tempDelay = 5 * time.Millisecond
-				} else {
-					tempDelay *= 2
-				}
-				if max := 1 * time.Second; tempDelay > max {
-					tempDelay = max
-				}
-				time.Sleep(tempDelay)
-				continue
-			}
-			logrus.Fatalln(err)
-		}
-		tempDelay = 0
-
-		go func() {
-			up, err := t.dialer.Dial()
-			if err != nil {
-				// handle error
-				logrus.WithFields(logrus.Fields{
-					"error": err,
-				}).Fatalln("frontend dial to address error")
-			}
-			defer up.Close()
-
-			ch := make(chan struct{}, 2)
-			go pipe(up, conn, ch)
-			pipe(conn, up, ch)
-			<-ch
-			<-ch
-		}()
-	}
 }
 
 func (t *trafcacc) roleString() string {

@@ -123,7 +123,7 @@ func (d *dialer) write(p *packet) error {
 func (d *dialer) connect(u *upstream) {
 	for {
 		switch u.proto {
-		case "tcp":
+		case tcp:
 			conn, err := net.Dial("tcp", u.addr)
 			if err != nil {
 				logrus.WithFields(logrus.Fields{
@@ -175,7 +175,7 @@ func (d *dialer) connect(u *upstream) {
 			}
 			conn.Close()
 			u.conn = nil
-		case "udp":
+		case udp:
 			// TODO: nothing?
 		}
 	}

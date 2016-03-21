@@ -90,12 +90,11 @@ type serv struct {
 	*ServeMux
 	proto string
 	addr  string
-	ln    net.Listener
 }
 
 func (s *serv) listen() {
 	switch s.proto {
-	case "tcp":
+	case tcp:
 		ln, err := net.Listen("tcp", s.addr)
 		if err != nil {
 			logrus.Fatalln("net.Listen error", s.addr, err)
@@ -104,36 +103,9 @@ func (s *serv) listen() {
 		if logrus.GetLevel() >= logrus.DebugLevel {
 			logrus.Debugln("listen to", s.addr)
 		}
-		s.ln = ln
-		go s.acceptTCP()
-	case "udp":
+		go acceptTCP(ln, s.packetHandler)
+	case udp:
 		// TODO udp
-	}
-}
-
-func (s *serv) acceptTCP() {
-	defer s.ln.Close()
-	var tempDelay time.Duration
-	for {
-		conn, err := s.ln.Accept()
-		if err != nil {
-			if ne, ok := err.(net.Error); ok && ne.Temporary() {
-				if tempDelay == 0 {
-					tempDelay = 5 * time.Millisecond
-				} else {
-					tempDelay *= 2
-				}
-				if max := 1 * time.Second; tempDelay > max {
-					tempDelay = max
-				}
-				time.Sleep(tempDelay)
-				continue
-			}
-			logrus.Fatalln(err)
-		}
-		tempDelay = 0
-
-		go s.packetHandler(conn)
 	}
 }
 

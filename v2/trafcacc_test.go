@@ -169,5 +169,5 @@ func iperfExec(cmd *exec.Cmd) {
 	if err != nil {
 		logrus.Fatalln(err)
 	}
-	err = cmd.Wait()
+	cmd.Wait()
 }

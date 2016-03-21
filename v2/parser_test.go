@@ -15,8 +15,8 @@ func TestFlags(t *testing.T) {
 	}
 
 	if !testEq(parse("udp://127.0.0.1:2000-2100,tcp://192.168.1.1:2000-2050"),
-		[]endpoint{endpoint{proto: "udp", host: "127.0.0.1", portBegin: 2000, portEnd: 2100},
-			endpoint{proto: "tcp", host: "192.168.1.1", portBegin: 2000, portEnd: 2050}}) {
+		[]endpoint{endpoint{proto: udp, host: "127.0.0.1", portBegin: 2000, portEnd: 2100},
+			endpoint{proto: tcp, host: "192.168.1.1", portBegin: 2000, portEnd: 2050}}) {
 		t.Fail()
 	}
 }

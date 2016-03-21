@@ -85,7 +85,7 @@ func (pool *streampool) pickupstreams() []*upstream {
 func (pool *streampool) alive() bool {
 	alive := 0
 	for _, v := range pool.pool {
-		if v.proto == "udp" {
+		if v.proto == udp {
 			alive++
 		}
 		if v.isAlive() {
