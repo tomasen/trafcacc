@@ -48,12 +48,20 @@ func testDialServe0(conn net.Conn) {
 	}
 }
 
-func TestDial(t *testing.T) {
+func TestDialTCP(t *testing.T) {
+	testDial("tcp://127.0.0.1:51010-51020", "tcp://:51010-51020", t)
+}
+
+func TestDialUDP(t *testing.T) {
+	testDial("udp://127.0.0.1:53010-53020", "udp://:53010-53020", t)
+}
+
+func testDial(f, s string, t *testing.T) {
 	srv := NewServeMux()
-	srv.HandleFunc("tcp://:51010-51020", testDialServe0)
+	srv.HandleFunc(s, testDialServe0)
 
 	d := NewDialer()
-	d.Setup("tcp://127.0.0.1:51010-51020")
+	d.Setup(f)
 
 	conn, err := d.Dial()
 	if err != nil {

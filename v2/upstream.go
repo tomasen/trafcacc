@@ -1,7 +1,9 @@
 package trafcacc
 
 import (
+	"bytes"
 	"encoding/gob"
+	"errors"
 	"math/rand"
 	"net"
 	"sync"
@@ -19,18 +21,63 @@ type upstream struct {
 	encoder *gob.Encoder
 	decoder *gob.Decoder
 
+	udpconn *net.UDPConn
+	udpaddr net.Addr
+
 	alive int64
 }
 
 func (u *upstream) send(cmd cmd) error {
-	err := u.encoder.Encode(&packet{Cmd: cmd})
-	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"error": err,
-			"cmd":   cmd,
-		}).Warnln("send upstream cmd error")
+	p := &packet{Cmd: cmd}
+	return u.sendpacket(p)
+}
+
+func (u *upstream) sendpacket(p *packet) error {
+	switch u.proto {
+	case tcp:
+		err := u.encoder.Encode(p)
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"error": err,
+				"cmd":   p.Cmd,
+				"proto": u.proto,
+			}).Warnln("send upstream cmd error")
+		}
+		return err
+	case udp:
+		var buf bytes.Buffer
+		if err := gob.NewEncoder(&buf).Encode(p); err != nil {
+			logrus.WithFields(logrus.Fields{
+				"error": err,
+				"cmd":   p.Cmd,
+				"proto": u.proto,
+			}).Warnln("send upstream cmd error")
+		}
+		var err error
+		if u.udpaddr != nil {
+			_, err = u.udpconn.WriteTo(buf.Bytes(), u.udpaddr)
+		} else {
+			_, err = u.udpconn.Write(buf.Bytes())
+		}
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"error": err,
+				"cmd":   p.Cmd,
+				"proto": u,
+			}).Warnln("send upstream error")
+		}
 	}
-	return err
+	return errors.New("send to unknown upstream protocol")
+}
+
+func (u *upstream) close() {
+	switch u.proto {
+	case tcp:
+		u.conn.Close()
+		u.conn = nil
+	case udp:
+		u.udpconn.Close()
+	}
 }
 
 func (u *upstream) isAlive() bool {
@@ -51,6 +98,14 @@ func newStreamPool() *streampool {
 
 func (pool *streampool) append(u *upstream) {
 	pool.L.Lock()
+	if u.proto == udp {
+		for _, v := range pool.pool {
+			if v.proto == u.proto && v.addr == u.addr {
+				pool.L.Unlock()
+				return
+			}
+		}
+	}
 	pool.pool = append(pool.pool, u)
 	pool.L.Unlock()
 	pool.Broadcast()
@@ -85,9 +140,9 @@ func (pool *streampool) pickupstreams() []*upstream {
 func (pool *streampool) alive() bool {
 	alive := 0
 	for _, v := range pool.pool {
-		if v.proto == udp {
-			alive++
-		}
+		// if v.proto == udp {
+		// 	alive++
+		// }
 		if v.isAlive() {
 			alive++
 		}

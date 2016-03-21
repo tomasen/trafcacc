@@ -7,7 +7,7 @@ import "time"
 //log "github.com/Sirupsen/logrus"
 
 const (
-	buffersize = 4096 * 4
+	buffersize = 4096 * 16
 	keepalive  = time.Second * 30
 
 	//dialtimeout = 15

@@ -1,8 +1,10 @@
 package trafcacc
 
 import (
+	"bytes"
 	"encoding/gob"
 	"errors"
+	"io"
 	"math/rand"
 	"net"
 	"strconv"
@@ -105,13 +107,11 @@ func (d *dialer) role() string {
 }
 
 func (d *dialer) write(p *packet) error {
-	p.Senderid = d.identity
 	successed := false
 
 	// pick upstream tunnel and send packet
 	for _, u := range d.pool.pickupstreams() {
-
-		err := u.encoder.Encode(&p)
+		err := u.sendpacket(p)
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
 				"error": err,
@@ -132,11 +132,9 @@ func (d *dialer) write(p *packet) error {
 // connect to upstream server and keep tunnel alive
 func (d *dialer) connect(u *upstream) {
 	for {
-		var conn net.Conn
-		var err error
 		switch u.proto {
 		case tcp:
-			conn, err = net.Dial("tcp", u.addr)
+			conn, err := net.Dial("tcp", u.addr)
 			if err != nil {
 				logrus.WithFields(logrus.Fields{
 					"addr":  u.addr,
@@ -147,38 +145,71 @@ func (d *dialer) connect(u *upstream) {
 				continue
 			}
 
+			u.encoder = gob.NewEncoder(conn)
+			u.decoder = gob.NewDecoder(conn)
+
+			u.conn = conn
+
 		case udp:
-			udpaddr, err0 := net.ResolveUDPAddr("udp", u.addr)
-			if err0 != nil {
-				logrus.Fatalln("net.ResolveUDPAddr error", u.addr, err0)
+			udpaddr, err := net.ResolveUDPAddr("udp", u.addr)
+			if err != nil {
+				logrus.Fatalln("net.ResolveUDPAddr error", u.addr, err)
 			}
-			conn, err = net.DialUDP("udp", nil, udpaddr)
+			conn, err := net.DialUDP("udp", nil, udpaddr)
 			if err != nil {
 				logrus.Fatalln("net.DialUDP error", udpaddr, err)
 			}
+			u.udpconn = conn
+			//u.udpaddr = udpaddr
 		}
 
-		u.encoder = gob.NewEncoder(conn)
-		u.decoder = gob.NewDecoder(conn)
-
 		// begin to ping
-		err = u.send(ping)
+		err := u.send(ping)
 		if err != nil {
-			conn.Close()
+			u.close()
 			continue
 		}
 
-		u.conn = conn
+		switch u.proto {
+		case tcp:
+			for {
+				p := packet{}
+				err = u.decoder.Decode(&p)
+				if err != nil {
+					logrus.WithFields(logrus.Fields{
+						"error": err,
+					}).Warnln("Dialer docode upstream packet")
+					break
+				}
+				if p.Cmd == pong {
+					// set alive only when received pong
+					atomic.StoreInt64(&u.alive, time.Now().UnixNano())
+					d.pool.Broadcast()
 
-		for {
-			p := packet{}
-			err = u.decoder.Decode(&p)
-			if err != nil {
-				logrus.WithFields(logrus.Fields{
-					"error": err,
-				}).Warnln("Dialer docode upstream packet")
-				break
+					go func() {
+						<-time.After(time.Second)
+						err := u.send(ping)
+						if err != nil {
+							// TODO: close connection?
+						}
+					}()
+					continue
+				}
+
+				go d.push(&p)
 			}
+			u.close()
+		case udp:
+			buf := make([]byte, buffersize)
+			n, _, err := u.udpconn.ReadFrom(buf)
+			if err != nil {
+				logrus.WithError(err).Warnln("dialer ReadFrom error")
+			}
+			p := packet{}
+			if err := gob.NewDecoder(bytes.NewReader(buf[:n])).Decode(&p); err != nil && err != io.EOF {
+				logrus.WithError(err).Warnln("gop decode from udp error")
+			}
+
 			if p.Cmd == pong {
 				// set alive only when received pong
 				atomic.StoreInt64(&u.alive, time.Now().UnixNano())
@@ -191,13 +222,11 @@ func (d *dialer) connect(u *upstream) {
 						// TODO: close connection?
 					}
 				}()
-				continue
+
 			}
 
 			go d.push(&p)
 		}
-		conn.Close()
-		u.conn = nil
 	}
 }
 
