@@ -24,5 +24,5 @@ const (
 )
 
 var (
-	udpBufferPool     =  &sync.Pool{New:func()interface{}{return make([]byte, buffersize)}}
+	udpBufferPool = &sync.Pool{New:func()interface{}{return make([]byte, buffersize)}}
 )

@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"sync/atomic"
 	"time"
+	"sync"
 
 	"github.com/Sirupsen/logrus"
 )
@@ -188,20 +189,26 @@ func (d *dialer) readloop(u *upstream) {
 
 func (d *dialer) write(p *packet) error {
 	p.Senderid = d.identity
-	successed := false
+	var successed uint32
 
+	var wg sync.WaitGroup
 	// pick upstream tunnel and send packet
 	for _, u := range d.pool.pickupstreams() {
-		err := u.sendpacket(p)
-		if err != nil {
-			logrus.WithFields(logrus.Fields{
-				"error": err,
-			}).Warnln("Dialer encode packet to upstream errror")
-		} else {
-			successed = true
-		}
+		wg.Add(1)
+		go func(up *upstream){
+			defer wg.Done()
+			err := up.sendpacket(p)
+			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"error": err,
+				}).Warnln("Dialer encode packet to upstream errror")
+			} else {
+				atomic.StoreUint32(&successed, 1)
+			}
+		}(u)
 	}
-	if successed {
+	wg.Wait()
+	if successed != 0 {
 		return nil
 	}
 

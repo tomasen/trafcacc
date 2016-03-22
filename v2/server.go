@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"sync/atomic"
 	"time"
+	"sync"
 
 	"github.com/Sirupsen/logrus"
 )
@@ -196,20 +197,25 @@ func (s *serv) tcphandler(conn net.Conn) {
 }
 
 func (mux *ServeMux) write(p *packet) error {
-	successed := false
+	var successed uint32
 
+	var wg sync.WaitGroup
 	// pick upstream tunnel and send packet
 	for _, u := range mux.pool.pickupstreams() {
-		err := u.sendpacket(p)
-		if err != nil {
-			logrus.WithFields(logrus.Fields{
-				"error": err,
-			}).Warnln("Server encode packet to upstream error")
-		} else {
-			successed = true
-		}
+		wg.Add(1)
+		go func(up *upstream){
+			err := up.sendpacket(p)
+			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"error": err,
+				}).Warnln("Server encode packet to upstream error")
+			} else {
+				atomic.StoreUint32(&successed, 1)
+			}
+		}(u)
 	}
-	if successed {
+	wg.Wait()
+	if successed != 0 {
 		// return error if all failed
 		return nil
 	}

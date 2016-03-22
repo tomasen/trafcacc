@@ -25,7 +25,7 @@ type test struct {
 func TestMain(tm *testing.M) {
 	if len(os.Getenv("IPERF")) <= 0 {
 		go func() {
-			time.Sleep(time.Second * 10)
+			time.Sleep(time.Second * 15)
 			panic("case test took too long")
 		}()
 	}
@@ -98,6 +98,11 @@ func testDial(f, s string, t *testing.T) {
 		}
 
 		if out.N != in.N+1 {
+			t.Fail()
+			break
+		}
+
+		if len(out.Buf) != len(in.Buf) {
 			t.Fail()
 			break
 		}

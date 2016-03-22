@@ -133,22 +133,6 @@ func pipe(dst net.Conn, src net.Conn, ch chan struct{}) {
 		ch <- struct{}{}
 	}()
 
-	/*
-		b := make([]byte, buffersize)
-		for {
-			n, err := src.Read(b)
-			if err != nil {
-				logrus.Warnln("pipe read error", err)
-				return
-			}
-			n, err = dst.Write(b[:n])
-			if err != nil {
-				logrus.Warnln("pipe write error", err)
-				return
-			}
-
-		}
-	*/
 	_, err := io.Copy(dst, src)
 	if err != nil {
 		logrus.Warnln("pipe copy error", err)
