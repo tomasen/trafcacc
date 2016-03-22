@@ -128,26 +128,45 @@ func (pool *streampool) append(u *upstream) {
 func (pool *streampool) pickupstreams() []*upstream {
 	pool.waitforalive()
 
-	// TODO: pick udp and tcp equally
+	// pick udp and tcp equally
 	pool.L.Lock()
 	defer pool.L.Unlock()
-	var alived []*upstream
+	var tcpalived []*upstream
+	var udpalived []*upstream
 	for _, v := range pool.pool {
 		if v.isAlive() {
-			alived = append(alived, v)
+			switch v.proto {
+			case tcp:
+				tcpalived = append(tcpalived, v)
+			case udp:
+				udpalived = append(udpalived, v)
+			}
 		}
 	}
+	var alived []*upstream
 	// avoid duplicate
-	length := len(alived)
-	switch length {
-	case 0:
-		return nil
-	case 1:
-		return alived
-	default:
-		idx := rand.Intn(length)
-		return []*upstream{alived[idx], alived[(idx+1)%length]}
+	udpArraySize := len(udpalived)
+	tcpArraySize := len(tcpalived)
+
+	if udpArraySize > 0 {
+		idx := rand.Intn(udpArraySize)
+		alived = append(alived, udpalived[idx])
+		if tcpArraySize == 0 {
+			return append(alived, udpalived[(idx+1)%udpArraySize])
+		}
 	}
+
+	switch  tcpArraySize{
+		case 1:
+			alived = append(alived, tcpalived[0])
+		default:
+			if len(alived) == 0 {
+				idx := rand.Intn(tcpArraySize)
+				return []*upstream{tcpalived[idx], tcpalived[(idx+1)%tcpArraySize]}
+			}
+		  return append(alived, tcpalived[rand.Intn(tcpArraySize)])
+	}
+	return nil
 }
 
 // check if there is any alive upstream
