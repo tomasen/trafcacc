@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/dustin/go-humanize"
 )
 
 func (t *trafcacc) Status() {
@@ -16,7 +17,7 @@ func (t *trafcacc) Status() {
 
 	fields := logrus.Fields{
 		"NumGoroutine": runtime.NumGoroutine(),
-		"Alloc":        s.Alloc,
+		"Alloc":        humanize.Bytes(s.Alloc),
 		"HeapObjects":  s.HeapObjects,
 	}
 

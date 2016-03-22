@@ -26,4 +26,6 @@ back-end:
 
 #### TODO
 
-- support udp 和 send udp and tcp at same time， 后者和上一个问题 send 2 packets at the same time 也有关
+- performance improvement 提高性能、速度和响应时间。目前问题：buffersize 为了避免udp message too long的问题必须设置的比较小，可能因此导致性能下降；其他性能瓶颈
+- 打印 Status 时显示每个 upstream 的速度和通讯量
+- pickupstreams 时每组 upstream 中至少选择一个
