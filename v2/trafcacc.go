@@ -13,9 +13,6 @@ const (
 	buffersize = 4096 * 2
 	mtu        = buffersize - 100
 	keepalive  = time.Second * 30
-
-	//dialtimeout = 15
-	//readtimeout = 30
 )
 
 const (

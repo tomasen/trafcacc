@@ -187,11 +187,10 @@ func TestIPERF(t *testing.T) {
 		pid := cmd0.Process.Pid
 		go cmd0.Wait()
 
-		Accelerate("tcp://:41501-41504", "tcp://127.0.0.1:5203", BACKEND)
-		//Accelerate("tcp://:41501-41504", "tcp://54.222.184.194:5201", BACKEND)
-		time.Sleep(time.Second)
-		Accelerate("tcp://:50500", "tcp://127.0.0.1:41501-41504", FRONTEND)
-		time.Sleep(time.Second)
+		Accelerate("tcp://:41501-41504,udp://:42401-42404", "tcp://127.0.0.1:5203", BACKEND)
+		time.Sleep(time.Second / 2)
+		Accelerate("tcp://:50500", "tcp://127.0.0.1:41501-41504,udp://127.0.0.1:42401-42404", FRONTEND)
+		time.Sleep(time.Second / 2)
 
 		//iperfExec(exec.Command("iperf3", "-c", "127.0.0.1", "-p", "50500", "-R", "-P", "3"))
 		//iperfExec(exec.Command("iperf3", "-c", "127.0.0.1", "-p", "50500", "-b", "10M"))
