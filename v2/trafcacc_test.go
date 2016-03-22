@@ -102,13 +102,21 @@ func testDial(f, s string, t *testing.T) {
 	conn.Close()
 }
 
-func TestHTTP(t *testing.T) {
+func TestHTTPviaTCP(t *testing.T) {
+	testHTTP("tcp://:41601-41604", "tcp://127.0.0.1:41601-41604", "50581", t)
+}
 
-	Accelerate("tcp://:41601-41604", "tcp://bing.com:80", BACKEND)
-	Accelerate("tcp://:50580", "tcp://127.0.0.1:41601-41604", FRONTEND)
+func TestHTTPviaUDP(t *testing.T) {
+	testHTTP("udp://:41701-41704", "udp://127.0.0.1:41701-41704", "50580", t)
+}
+
+func testHTTP(bc, fc, lport string, t *testing.T) {
+
+	Accelerate(bc, "tcp://bing.com:80", BACKEND)
+	Accelerate("tcp://:" + lport, fc, FRONTEND)
 
 	client := &http.Client{}
-	req, _ := http.NewRequest("GET", "http://127.0.0.1:50580/robots.txt", nil)
+	req, _ := http.NewRequest("GET", "http://127.0.0.1:" + lport + "/robots.txt", nil)
 	req.Host = "bing.com"
 	res, err := client.Do(req)
 	if err != nil {
