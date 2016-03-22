@@ -16,10 +16,9 @@ import (
 type ServeMux struct {
 	// contains filtered or unexported fields
 	handler Handler
-
-	pool *streampool
-
-	pqs *packetQueue
+	pool    *streampool
+	pqs     *packetQueue
+	udpbuf  []byte
 }
 
 // Handler TODO: comment
@@ -38,8 +37,9 @@ func (f handlerFunc) Serve(c net.Conn) {
 // NewServeMux allocates and returns a new ServeMux.
 func NewServeMux() *ServeMux {
 	return &ServeMux{
-		pqs:  newPacketQueue(),
-		pool: newStreamPool(),
+		pqs:    newPacketQueue(),
+		pool:   newStreamPool(),
+		udpbuf: make([]byte, buffersize),
 	}
 }
 
@@ -67,30 +67,6 @@ func (mux *ServeMux) pq() *packetQueue {
 
 func (mux *ServeMux) role() string {
 	return "server"
-}
-
-func (mux *ServeMux) write(p *packet) error {
-	successed := false
-
-	// pick upstream tunnel and send packet
-	for _, u := range mux.pool.pickupstreams() {
-		err := u.sendpacket(p)
-		if err != nil {
-			logrus.WithFields(logrus.Fields{
-				"error": err,
-			}).Warnln("Server encode packet to upstream error")
-		} else {
-			successed = true
-		}
-	}
-	if successed {
-		// return error if all failed
-		return nil
-	}
-	logrus.WithFields(logrus.Fields{
-		"error": "no successed write",
-	}).Warnln("Server encode packet to upstream error")
-	return errors.New("server encoder error")
 }
 
 type serv struct {
@@ -129,40 +105,48 @@ func (s *serv) listen() {
 }
 
 func (s *serv) udphandler(conn *net.UDPConn) {
-	buf := make([]byte, buffersize)
-	n, addr, err := conn.ReadFromUDP(buf)
-	if err != nil {
-		logrus.WithError(err).Warnln("ReadFromUDP error")
-	}
-	p := packet{}
-	if err := gob.NewDecoder(bytes.NewReader(buf[:n])).Decode(&p); err != nil {
-		logrus.WithError(err).Warnln("gop decode from udp error")
-	}
-	// add to pool
 	u := upstream{
 		proto:   s.proto,
-		addr:    addr.String(),
-		udpaddr: addr,
 		udpconn: conn,
 	}
+	// add to pool
+	s.pool.append(&u)
 	defer func() {
-		conn.Close()
+		u.close()
+		s.pool.remove(&u)
 	}()
 
-	s.pool.append(&u)
-
-	switch p.Cmd {
-	case ping:
-		atomic.StoreInt64(&u.alive, time.Now().UnixNano())
-		s.pool.Broadcast()
-
-		// reply
-		err := u.send(pong)
+	for {
+		udpbuf := make([]byte, buffersize)
+		n, addr, err := conn.ReadFromUDP(udpbuf)
 		if err != nil {
-			return
+			logrus.WithError(err).Warnln("ReadFromUDP error")
+			break
 		}
-	default:
-		go s.push(&p)
+		if u.udpaddr == nil {
+			u.udpaddr = addr
+		}
+
+		p := packet{}
+		if err := gob.NewDecoder(bytes.NewReader(udpbuf[:n])).Decode(&p); err != nil {
+			logrus.WithError(err).Warnln("gop decode from udp error")
+			continue
+		}
+
+		switch p.Cmd {
+		case ping:
+			atomic.StoreInt64(&u.alive, time.Now().UnixNano())
+			s.pool.Broadcast()
+
+			// reply
+			err := u.send(pong)
+			if err != nil {
+				return
+			}
+			continue
+		default:
+			go s.push(&p)
+		}
 	}
 }
 
@@ -175,7 +159,6 @@ func (s *serv) tcphandler(conn net.Conn) {
 	// add to pool
 	u := upstream{
 		proto:   s.proto,
-		addr:    conn.RemoteAddr().String(),
 		encoder: enc,
 		decoder: dec,
 	}
@@ -183,7 +166,7 @@ func (s *serv) tcphandler(conn net.Conn) {
 	defer func() {
 		conn.Close()
 		// remove from pool
-		s.pool.remove(u.proto, u.addr)
+		s.pool.remove(&u)
 	}()
 
 	s.pool.append(&u)
@@ -211,6 +194,30 @@ func (s *serv) tcphandler(conn net.Conn) {
 			go s.push(&p)
 		}
 	}
+}
+
+func (mux *ServeMux) write(p *packet) error {
+	successed := false
+
+	// pick upstream tunnel and send packet
+	for _, u := range mux.pool.pickupstreams() {
+		err := u.sendpacket(p)
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"error": err,
+			}).Warnln("Server encode packet to upstream error")
+		} else {
+			successed = true
+		}
+	}
+	if successed {
+		// return error if all failed
+		return nil
+	}
+	logrus.WithFields(logrus.Fields{
+		"error": "no successed write",
+	}).Warnln("Server encode packet to upstream error")
+	return errors.New("server encoder error")
 }
 
 func (s *serv) push(p *packet) {

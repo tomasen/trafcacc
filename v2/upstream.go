@@ -14,17 +14,21 @@ import (
 )
 
 type upstream struct {
+	uuid  uint64
 	proto string
-	addr  string
+	alive int64
 
-	conn    net.Conn
+	// tcp only
 	encoder *gob.Encoder
 	decoder *gob.Decoder
 
+	// udp only (server)
 	udpconn *net.UDPConn
-	udpaddr net.Addr
+	udpaddr *net.UDPAddr
 
-	alive int64
+	// dialer only
+	conn net.Conn
+	addr string
 }
 
 func (u *upstream) send(cmd cmd) error {
@@ -54,10 +58,14 @@ func (u *upstream) sendpacket(p *packet) error {
 			}).Warnln("send upstream cmd error")
 		}
 		var err error
-		if u.udpaddr != nil {
-			_, err = u.udpconn.WriteTo(buf.Bytes(), u.udpaddr)
+		if u.udpaddr != nil { // server
+			_, err = u.udpconn.WriteToUDP(buf.Bytes(), u.udpaddr)
+		} else if u.conn != nil { // dialer
+			_, err = u.conn.Write(buf.Bytes())
 		} else {
-			_, err = u.udpconn.Write(buf.Bytes())
+			logrus.WithFields(logrus.Fields{
+				"upstream": u,
+			}).Warnln("upstream is not there")
 		}
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
@@ -66,17 +74,19 @@ func (u *upstream) sendpacket(p *packet) error {
 				"proto": u,
 			}).Warnln("send upstream error")
 		}
+		return err
 	}
 	return errors.New("send to unknown upstream protocol")
 }
 
 func (u *upstream) close() {
-	switch u.proto {
-	case tcp:
+	if u.conn != nil {
 		u.conn.Close()
 		u.conn = nil
-	case udp:
+	}
+	if u.udpconn != nil {
 		u.udpconn.Close()
+		u.udpconn = nil
 	}
 }
 
@@ -86,7 +96,8 @@ func (u *upstream) isAlive() bool {
 
 type streampool struct {
 	*sync.Cond
-	pool []*upstream
+	pool     []*upstream
+	atomicid uint64
 }
 
 func newStreamPool() *streampool {
@@ -98,17 +109,20 @@ func newStreamPool() *streampool {
 
 func (pool *streampool) append(u *upstream) {
 	pool.L.Lock()
-	if u.proto == udp {
+	defer func() {
+		pool.L.Unlock()
+		pool.Broadcast()
+	}()
+
+	if u.uuid != 0 {
 		for _, v := range pool.pool {
-			if v.proto == u.proto && v.addr == u.addr {
-				pool.L.Unlock()
+			if v.uuid == u.uuid {
 				return
 			}
 		}
 	}
+	u.uuid = atomic.AddUint64(&pool.atomicid, 1)
 	pool.pool = append(pool.pool, u)
-	pool.L.Unlock()
-	pool.Broadcast()
 }
 
 func (pool *streampool) pickupstreams() []*upstream {
@@ -140,9 +154,6 @@ func (pool *streampool) pickupstreams() []*upstream {
 func (pool *streampool) alive() bool {
 	alive := 0
 	for _, v := range pool.pool {
-		// if v.proto == udp {
-		// 	alive++
-		// }
 		if v.isAlive() {
 			alive++
 		}
@@ -156,17 +167,16 @@ func (pool *streampool) alive() bool {
 func (pool *streampool) waitforalive() {
 	pool.L.Lock()
 	for !pool.alive() {
-
 		pool.Wait()
 	}
 
 	pool.L.Unlock()
 }
 
-func (pool *streampool) remove(proto, addr string) {
+func (pool *streampool) remove(u *upstream) {
 	pool.L.Lock()
 	for k, v := range pool.pool {
-		if v.proto == proto && v.addr == addr {
+		if v.uuid == u.uuid {
 			pool.pool = append(pool.pool[:k], pool.pool[k+1:]...)
 		}
 	}

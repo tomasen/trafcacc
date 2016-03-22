@@ -21,6 +21,7 @@ func NewDialer() Dialer {
 		pool:     newStreamPool(),
 		identity: rand.Uint32(),
 		pqd:      newPacketQueue(),
+		udpbuf:   make([]byte, buffersize),
 	}
 }
 
@@ -38,6 +39,8 @@ type dialer struct {
 	atomicid uint32
 
 	pqd *packetQueue
+
+	udpbuf []byte
 }
 
 // Setup upstream servers
@@ -106,6 +109,82 @@ func (d *dialer) role() string {
 	return "dialer"
 }
 
+// connect to upstream server and keep tunnel alive
+func (d *dialer) connect(u *upstream) {
+	for {
+		conn, err := net.Dial(u.proto, u.addr)
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"addr":  u.addr,
+				"error": err,
+			}).Warnln("Dialer dial upstream error")
+			time.Sleep(time.Second)
+			continue
+		}
+
+		u.conn = conn
+
+		switch u.proto {
+		case tcp:
+			u.encoder = gob.NewEncoder(conn)
+			u.decoder = gob.NewDecoder(conn)
+		case udp:
+		}
+
+		// begin to ping
+		err = u.send(ping)
+		if err != nil {
+			u.close()
+			continue
+		}
+
+		d.readloop(u)
+
+		u.close()
+	}
+}
+
+func (d *dialer) readloop(u *upstream) {
+	for {
+		p := packet{}
+		if u.proto == tcp {
+			err := u.decoder.Decode(&p)
+			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"error": err,
+				}).Warnln("Dialer docode upstream packet")
+				break
+			}
+		} else { //  if u.proto == udp
+			udpbuf := make([]byte, buffersize)
+			n, err := u.conn.Read(udpbuf)
+			if err != nil {
+				logrus.WithError(err).Warnln("dialer Read UDP error")
+				break
+			}
+			if err := gob.NewDecoder(bytes.NewReader(udpbuf[:n])).Decode(&p); err != nil && err != io.EOF {
+				logrus.WithError(err).Warnln("gop decode from udp error")
+				continue
+			}
+		}
+		if p.Cmd == pong {
+			// set alive only when received pong
+			atomic.StoreInt64(&u.alive, time.Now().UnixNano())
+			d.pool.Broadcast()
+
+			go func() {
+				<-time.After(time.Second)
+				err := u.send(ping)
+				if err != nil {
+					// TODO: close connection?
+				}
+			}()
+			continue
+		}
+		go d.push(&p)
+	}
+}
+
 func (d *dialer) write(p *packet) error {
 	successed := false
 
@@ -119,115 +198,13 @@ func (d *dialer) write(p *packet) error {
 		} else {
 			successed = true
 		}
-
 	}
 	if successed {
-		// return error if all failed
 		return nil
 	}
 
+	// return error if all failed
 	return errors.New("dialer encoder error")
-}
-
-// connect to upstream server and keep tunnel alive
-func (d *dialer) connect(u *upstream) {
-	for {
-		switch u.proto {
-		case tcp:
-			conn, err := net.Dial("tcp", u.addr)
-			if err != nil {
-				logrus.WithFields(logrus.Fields{
-					"addr":  u.addr,
-					"error": err,
-				}).Warnln("Dialer dial upstream error")
-
-				time.Sleep(time.Second)
-				continue
-			}
-
-			u.encoder = gob.NewEncoder(conn)
-			u.decoder = gob.NewDecoder(conn)
-
-			u.conn = conn
-
-		case udp:
-			udpaddr, err := net.ResolveUDPAddr("udp", u.addr)
-			if err != nil {
-				logrus.Fatalln("net.ResolveUDPAddr error", u.addr, err)
-			}
-			conn, err := net.DialUDP("udp", nil, udpaddr)
-			if err != nil {
-				logrus.Fatalln("net.DialUDP error", udpaddr, err)
-			}
-			u.udpconn = conn
-			//u.udpaddr = udpaddr
-		}
-
-		// begin to ping
-		err := u.send(ping)
-		if err != nil {
-			u.close()
-			continue
-		}
-
-		switch u.proto {
-		case tcp:
-			for {
-				p := packet{}
-				err = u.decoder.Decode(&p)
-				if err != nil {
-					logrus.WithFields(logrus.Fields{
-						"error": err,
-					}).Warnln("Dialer docode upstream packet")
-					break
-				}
-				if p.Cmd == pong {
-					// set alive only when received pong
-					atomic.StoreInt64(&u.alive, time.Now().UnixNano())
-					d.pool.Broadcast()
-
-					go func() {
-						<-time.After(time.Second)
-						err := u.send(ping)
-						if err != nil {
-							// TODO: close connection?
-						}
-					}()
-					continue
-				}
-
-				go d.push(&p)
-			}
-			u.close()
-		case udp:
-			buf := make([]byte, buffersize)
-			n, _, err := u.udpconn.ReadFrom(buf)
-			if err != nil {
-				logrus.WithError(err).Warnln("dialer ReadFrom error")
-			}
-			p := packet{}
-			if err := gob.NewDecoder(bytes.NewReader(buf[:n])).Decode(&p); err != nil && err != io.EOF {
-				logrus.WithError(err).Warnln("gop decode from udp error")
-			}
-
-			if p.Cmd == pong {
-				// set alive only when received pong
-				atomic.StoreInt64(&u.alive, time.Now().UnixNano())
-				d.pool.Broadcast()
-
-				go func() {
-					<-time.After(time.Second)
-					err := u.send(ping)
-					if err != nil {
-						// TODO: close connection?
-					}
-				}()
-
-			}
-
-			go d.push(&p)
-		}
-	}
 }
 
 // push packet to packet queue
