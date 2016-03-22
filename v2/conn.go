@@ -6,6 +6,8 @@ import (
 	"net"
 	"sync/atomic"
 	"time"
+	"sync"
+	"errors"
 )
 
 // packet conn
@@ -62,23 +64,33 @@ func (c *packetconn) Read(b []byte) (n int, err error) {
 // after a fixed time limit; see SetDeadline and SetWriteDeadline.
 func (c *packetconn) Write(b []byte) (n int, err error) {
 	// TODO: You can not send messages (datagrams) larger than 2^16 65536 octets with UDP.
+	var wg sync.WaitGroup
+	sent := int64(len(b))
+
 	for n := 0; n < len(b); n+=mtu {
 		sz := len(b) - n
 		if sz > mtu {
 			sz = mtu
 		}
-
-		err = c.write(&packet{
-			Senderid: c.senderid,
-			Seqid:    atomic.AddUint32(&c.seqid, 1),
-			Connid:   c.connid,
-			Buf:      b[n:n+sz],
-		})
-		if err != nil {
-			return n, err
-		}
+		wg.Add(1)
+		go func(b0, b1 int, seqid uint32) {
+			defer wg.Done()
+			e0 := c.write(&packet{
+				Senderid: c.senderid,
+				Seqid:    seqid,
+				Connid:   c.connid,
+				Buf:      b[b0:b1],
+			})
+			if e0 != nil {
+				//return n, err
+				atomic.StoreInt64(&sent, int64(n))
+			}
+		}(n, n+sz, atomic.AddUint32(&c.seqid, 1))
 	}
-
+	wg.Wait()
+	if sent != int64(len(b)) {
+		return int(sent), errors.New("trafcacc write error")
+	}
 	return len(b), err
 }
 
