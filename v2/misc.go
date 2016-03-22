@@ -12,6 +12,8 @@ func (t *trafcacc) Status() {
 	// print status
 	s := new(runtime.MemStats)
 
+	runtime.ReadMemStats(s)
+
 	fields := logrus.Fields{
 		"NumGoroutine": runtime.NumGoroutine(),
 		"Alloc":        s.Alloc,
