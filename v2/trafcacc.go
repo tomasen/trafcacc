@@ -3,15 +3,15 @@
 package trafcacc
 
 import (
-	"time"
 	"sync"
+	"time"
 )
 
 //log "github.com/Sirupsen/logrus"
 
 const (
-	buffersize = 4096*2
-	mtu  			 = buffersize-100
+	buffersize = 4096 * 2
+	mtu        = buffersize - 100
 	keepalive  = time.Second * 30
 
 	//dialtimeout = 15
@@ -24,5 +24,5 @@ const (
 )
 
 var (
-	udpBufferPool = &sync.Pool{New:func()interface{}{return make([]byte, buffersize)}}
+	udpBufferPool = &sync.Pool{New: func() interface{} { return make([]byte, buffersize) }}
 )

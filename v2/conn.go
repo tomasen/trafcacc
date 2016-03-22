@@ -2,12 +2,12 @@ package trafcacc
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net"
+	"sync"
 	"sync/atomic"
 	"time"
-	"sync"
-	"errors"
 )
 
 // packet conn
@@ -67,7 +67,7 @@ func (c *packetconn) Write(b []byte) (n int, err error) {
 	var wg sync.WaitGroup
 	sent := int64(len(b))
 
-	for n := 0; n < len(b); n+=mtu {
+	for n := 0; n < len(b); n += mtu {
 		sz := len(b) - n
 		if sz > mtu {
 			sz = mtu

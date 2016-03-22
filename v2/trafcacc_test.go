@@ -18,7 +18,7 @@ import (
 )
 
 type test struct {
-	N int
+	N   int
 	Buf []byte
 }
 
@@ -79,17 +79,17 @@ func testDial(f, s string, t *testing.T) {
 	enc := gob.NewEncoder(conn)
 	dec := gob.NewDecoder(conn)
 
-	in := test{N:1}
+	in := test{N: 1}
 
 	for {
-		in.Buf = randomBytes(buffersize*2)
+		in.Buf = randomBytes(buffersize * 2)
 		err := enc.Encode(in)
 		if err != nil {
 			logrus.Fatalln("dialer write error", err)
 			t.Fail()
 			break
 		}
-		out :=test{}
+		out := test{}
 		err = dec.Decode(&out)
 		if err != nil {
 			logrus.Warnln("dialer read error", err)
@@ -115,7 +115,6 @@ func testDial(f, s string, t *testing.T) {
 	conn.Close()
 }
 
-
 func randomBytes(n int) []byte {
 
 	b := make([]byte, n)
@@ -138,10 +137,10 @@ func TestHTTPviaUDP(t *testing.T) {
 func testHTTP(bc, fc, lport string, t *testing.T) {
 
 	Accelerate(bc, "tcp://bing.com:80", BACKEND)
-	Accelerate("tcp://:" + lport, fc, FRONTEND)
+	Accelerate("tcp://:"+lport, fc, FRONTEND)
 
 	client := &http.Client{}
-	req, _ := http.NewRequest("GET", "http://127.0.0.1:" + lport + "/robots.txt", nil)
+	req, _ := http.NewRequest("GET", "http://127.0.0.1:"+lport+"/robots.txt", nil)
 	req.Host = "bing.com"
 	res, err := client.Do(req)
 	if err != nil {

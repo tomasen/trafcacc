@@ -6,9 +6,9 @@ import (
 	"errors"
 	"net"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
-	"sync"
 
 	"github.com/Sirupsen/logrus"
 )
@@ -37,8 +37,8 @@ func (f handlerFunc) Serve(c net.Conn) {
 // NewServeMux allocates and returns a new ServeMux.
 func NewServeMux() *ServeMux {
 	return &ServeMux{
-		pqs:    newPacketQueue(),
-		pool:   newStreamPool(),
+		pqs:  newPacketQueue(),
+		pool: newStreamPool(),
 	}
 }
 
@@ -203,7 +203,7 @@ func (mux *ServeMux) write(p *packet) error {
 	// pick upstream tunnel and send packet
 	for _, u := range mux.pool.pickupstreams() {
 		wg.Add(1)
-		go func(up *upstream){
+		go func(up *upstream) {
 			defer wg.Done()
 			err := up.sendpacket(p)
 			if err != nil {

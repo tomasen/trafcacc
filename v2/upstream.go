@@ -156,15 +156,15 @@ func (pool *streampool) pickupstreams() []*upstream {
 		}
 	}
 
-	switch  tcpArraySize{
-		case 1:
-			alived = append(alived, tcpalived[0])
-		default:
-			if len(alived) == 0 {
-				idx := rand.Intn(tcpArraySize)
-				return []*upstream{tcpalived[idx], tcpalived[(idx+1)%tcpArraySize]}
-			}
-		  return append(alived, tcpalived[rand.Intn(tcpArraySize)])
+	switch tcpArraySize {
+	case 1:
+		alived = append(alived, tcpalived[0])
+	default:
+		if len(alived) == 0 {
+			idx := rand.Intn(tcpArraySize)
+			return []*upstream{tcpalived[idx], tcpalived[(idx+1)%tcpArraySize]}
+		}
+		return append(alived, tcpalived[rand.Intn(tcpArraySize)])
 	}
 	return nil
 }

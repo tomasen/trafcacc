@@ -8,9 +8,9 @@ import (
 	"math/rand"
 	"net"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
-	"sync"
 
 	"github.com/Sirupsen/logrus"
 )
@@ -94,8 +94,8 @@ func (d *dialer) DialTimeout(timeout time.Duration) (net.Conn, error) {
 	// send connect cmd
 	d.write(&packet{
 		Senderid: d.identity,
-		Connid: conn.connid,
-		Cmd:    connect,
+		Connid:   conn.connid,
+		Cmd:      connect,
 	})
 
 	return conn, nil
@@ -195,7 +195,7 @@ func (d *dialer) write(p *packet) error {
 	// pick upstream tunnel and send packet
 	for _, u := range d.pool.pickupstreams() {
 		wg.Add(1)
-		go func(up *upstream){
+		go func(up *upstream) {
 			defer wg.Done()
 			err := up.sendpacket(p)
 			if err != nil {
