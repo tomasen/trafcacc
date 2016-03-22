@@ -83,7 +83,7 @@ func (d *dialer) DialTimeout(timeout time.Duration) (net.Conn, error) {
 		}
 	}
 
-	conn := &conn{
+	conn := &packetconn{
 		pconn:    d,
 		senderid: d.identity,
 		connid:   atomic.AddUint32(&d.atomicid, 1),
@@ -93,6 +93,7 @@ func (d *dialer) DialTimeout(timeout time.Duration) (net.Conn, error) {
 
 	// send connect cmd
 	d.write(&packet{
+		Senderid: d.identity,
 		Connid: conn.connid,
 		Cmd:    connect,
 	})
@@ -186,6 +187,7 @@ func (d *dialer) readloop(u *upstream) {
 }
 
 func (d *dialer) write(p *packet) error {
+	p.Senderid = d.identity
 	successed := false
 
 	// pick upstream tunnel and send packet

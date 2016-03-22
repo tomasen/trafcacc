@@ -16,7 +16,7 @@ type pconn interface {
 }
 
 // conn
-type conn struct {
+type packetconn struct {
 	pconn
 	senderid uint32
 	connid   uint32
@@ -27,7 +27,7 @@ type conn struct {
 // Read reads data from the connection.
 // Read can be made to time out and return a Error with Timeout() == true
 // after a fixed time limit; see SetDeadline and SetReadDeadline.
-func (c *conn) Read(b []byte) (n int, err error) {
+func (c *packetconn) Read(b []byte) (n int, err error) {
 	if c.rdr.Len() > 0 {
 		return c.rdr.Read(b)
 	}
@@ -60,7 +60,7 @@ func (c *conn) Read(b []byte) (n int, err error) {
 // Write writes data to the connection.
 // Write can be made to time out and return a Error with Timeout() == true
 // after a fixed time limit; see SetDeadline and SetWriteDeadline.
-func (c *conn) Write(b []byte) (n int, err error) {
+func (c *packetconn) Write(b []byte) (n int, err error) {
 	err = c.write(&packet{
 		Senderid: c.senderid,
 		Seqid:    atomic.AddUint32(&c.seqid, 1),
@@ -76,7 +76,7 @@ func (c *conn) Write(b []byte) (n int, err error) {
 
 // Close closes the connection.
 // Any blocked Read or Write operations will be unblocked and return errors.
-func (c *conn) Close() error {
+func (c *packetconn) Close() error {
 
 	cmd := closed
 	if c.role() == "dialer" {
@@ -96,13 +96,13 @@ func (c *conn) Close() error {
 }
 
 // LocalAddr returns the local network address.
-func (c *conn) LocalAddr() net.Addr {
+func (c *packetconn) LocalAddr() net.Addr {
 	// TODO:
 	return nil
 }
 
 // RemoteAddr returns the remote network address.
-func (c *conn) RemoteAddr() net.Addr {
+func (c *packetconn) RemoteAddr() net.Addr {
 	// TODO:
 	return nil
 }
@@ -120,14 +120,14 @@ func (c *conn) RemoteAddr() net.Addr {
 // the deadline after successful Read or Write calls.
 //
 // A zero value for t means I/O operations will not time out.
-func (c *conn) SetDeadline(t time.Time) error {
+func (c *packetconn) SetDeadline(t time.Time) error {
 	// TODO:
 	return nil
 }
 
 // SetReadDeadline sets the deadline for future Read calls.
 // A zero value for t means Read will not time out.
-func (c *conn) SetReadDeadline(t time.Time) error {
+func (c *packetconn) SetReadDeadline(t time.Time) error {
 	// TODO:
 	return nil
 }
@@ -136,7 +136,7 @@ func (c *conn) SetReadDeadline(t time.Time) error {
 // Even if write times out, it may return n > 0, indicating that
 // some of the data was successfully written.
 // A zero value for t means Write will not time out.
-func (c *conn) SetWriteDeadline(t time.Time) error {
+func (c *packetconn) SetWriteDeadline(t time.Time) error {
 	// TODO:
 	return nil
 }

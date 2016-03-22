@@ -221,7 +221,6 @@ func (mux *ServeMux) write(p *packet) error {
 }
 
 func (s *serv) push(p *packet) {
-
 	if s.pqs.create(p.Senderid, p.Connid) {
 		// it's new conn
 		s.write(&packet{
@@ -230,7 +229,7 @@ func (s *serv) push(p *packet) {
 			Cmd:      connected,
 		})
 
-		s.handler.Serve(&conn{
+		s.handler.Serve(&packetconn{
 			pconn:    s.ServeMux,
 			senderid: p.Senderid,
 			connid:   p.Connid,
