@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"io"
 	"net"
-	"fmt"
 	"sync/atomic"
 	"time"
 )
@@ -68,14 +67,12 @@ func (c *packetconn) Write(b []byte) (n int, err error) {
 		if sz > mtu {
 			sz = mtu
 		}
-		if n > 0 {
-			fmt.Println(n, sz, mtu)
-		}
+
 		err = c.write(&packet{
 			Senderid: c.senderid,
 			Seqid:    atomic.AddUint32(&c.seqid, 1),
 			Connid:   c.connid,
-			Buf:      b[n:sz],
+			Buf:      b[n:n+sz],
 		})
 		if err != nil {
 			return n, err

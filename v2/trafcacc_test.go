@@ -3,6 +3,7 @@ package trafcacc
 import (
 	"encoding/gob"
 	"io/ioutil"
+	"math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -15,6 +16,11 @@ import (
 
 	"github.com/Sirupsen/logrus"
 )
+
+type test struct {
+	N int
+	Buf []byte
+}
 
 func TestMain(tm *testing.M) {
 	if len(os.Getenv("IPERF")) <= 0 {
@@ -31,7 +37,7 @@ func testDialServe0(conn net.Conn) {
 	enc := gob.NewEncoder(conn)
 	dec := gob.NewDecoder(conn)
 
-	in := 1
+	in := test{}
 
 	for {
 		err := dec.Decode(&in)
@@ -39,7 +45,7 @@ func testDialServe0(conn net.Conn) {
 			logrus.Warnln("server read error", err)
 			break
 		}
-		in++
+		in.N++
 		err = enc.Encode(in)
 		if err != nil {
 			logrus.Fatalln("server write error", err)
@@ -73,15 +79,17 @@ func testDial(f, s string, t *testing.T) {
 	enc := gob.NewEncoder(conn)
 	dec := gob.NewDecoder(conn)
 
-	out, in := 1, 1
+	in := test{N:1}
 
 	for {
+		in.Buf = randomBytes(buffersize*2)
 		err := enc.Encode(in)
 		if err != nil {
 			logrus.Fatalln("dialer write error", err)
 			t.Fail()
 			break
 		}
+		out :=test{}
 		err = dec.Decode(&out)
 		if err != nil {
 			logrus.Warnln("dialer read error", err)
@@ -89,17 +97,29 @@ func testDial(f, s string, t *testing.T) {
 			break
 		}
 
-		if out != in+1 {
+		if out.N != in.N+1 {
 			t.Fail()
 			break
 		}
 
-		in = out + 1
-		if out > 2000 {
+		in.N = out.N + 1
+		if out.N > 100 {
 			break
 		}
 	}
 	conn.Close()
+}
+
+
+func randomBytes(n int) []byte {
+
+	b := make([]byte, n)
+	// A src.Int63() generates 63 random bits, enough for letterIdxMax characters!
+	for i := 0; i < n; i++ {
+		b[i] = byte(rand.Int())
+	}
+
+	return b
 }
 
 func TestHTTPviaTCP(t *testing.T) {

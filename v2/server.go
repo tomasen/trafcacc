@@ -128,7 +128,7 @@ func (s *serv) udphandler(conn *net.UDPConn) {
 
 		p := packet{}
 		if err := gob.NewDecoder(bytes.NewReader(udpbuf[:n])).Decode(&p); err != nil {
-			logrus.WithError(err).Warnln("gop decode from udp error")
+			logrus.WithError(err).Warnln("server gop decode from udp error", n)
 			continue
 		}
 

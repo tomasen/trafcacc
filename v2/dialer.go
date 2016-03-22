@@ -164,7 +164,7 @@ func (d *dialer) readloop(u *upstream) {
 				break
 			}
 			if err := gob.NewDecoder(bytes.NewReader(udpbuf[:n])).Decode(&p); err != nil && err != io.EOF {
-				logrus.WithError(err).Warnln("gop decode from udp error")
+				logrus.WithError(err).Warnln("dialer gop decode from udp error")
 				continue
 			}
 		}
