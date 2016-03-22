@@ -18,7 +18,6 @@ type ServeMux struct {
 	handler Handler
 	pool    *streampool
 	pqs     *packetQueue
-	udpbuf  []byte
 }
 
 // Handler TODO: comment
@@ -39,7 +38,6 @@ func NewServeMux() *ServeMux {
 	return &ServeMux{
 		pqs:    newPacketQueue(),
 		pool:   newStreamPool(),
-		udpbuf: make([]byte, buffersize),
 	}
 }
 
@@ -117,7 +115,8 @@ func (s *serv) udphandler(conn *net.UDPConn) {
 	}()
 
 	for {
-		udpbuf := make([]byte, buffersize)
+		udpbuf := udpBufferPool.Get().([]byte)
+		defer udpBufferPool.Put(udpbuf)
 		n, addr, err := conn.ReadFromUDP(udpbuf)
 		if err != nil {
 			logrus.WithError(err).Warnln("ReadFromUDP error")

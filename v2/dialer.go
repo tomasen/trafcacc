@@ -21,7 +21,6 @@ func NewDialer() Dialer {
 		pool:     newStreamPool(),
 		identity: rand.Uint32(),
 		pqd:      newPacketQueue(),
-		udpbuf:   make([]byte, buffersize),
 	}
 }
 
@@ -157,7 +156,8 @@ func (d *dialer) readloop(u *upstream) {
 				break
 			}
 		} else { //  if u.proto == udp
-			udpbuf := make([]byte, buffersize)
+			udpbuf := udpBufferPool.Get().([]byte)
+			defer udpBufferPool.Put(udpbuf)
 			n, err := u.conn.Read(udpbuf)
 			if err != nil {
 				logrus.WithError(err).Warnln("dialer Read UDP error")

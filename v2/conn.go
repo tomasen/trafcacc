@@ -61,6 +61,7 @@ func (c *packetconn) Read(b []byte) (n int, err error) {
 // Write can be made to time out and return a Error with Timeout() == true
 // after a fixed time limit; see SetDeadline and SetWriteDeadline.
 func (c *packetconn) Write(b []byte) (n int, err error) {
+	// TODO: You can not send messages (datagrams) larger than 2^16 65536 octets with UDP.
 	err = c.write(&packet{
 		Senderid: c.senderid,
 		Seqid:    atomic.AddUint32(&c.seqid, 1),

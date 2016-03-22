@@ -2,7 +2,10 @@
 
 package trafcacc
 
-import "time"
+import (
+	"time"
+	"sync"
+)
 
 //log "github.com/Sirupsen/logrus"
 
@@ -17,4 +20,8 @@ const (
 const (
 	tcp = "tcp"
 	udp = "udp"
+)
+
+var (
+	udpBufferPool     =  &sync.Pool{New:func()interface{}{return make([]byte, buffersize)}}
 )
