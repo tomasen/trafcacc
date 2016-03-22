@@ -175,15 +175,17 @@ func TestIPERF(t *testing.T) {
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
-	signal.Notify(c, syscall.SIGTERM)
+	// signal.Notify(c, syscall.SIGTERM)
 	go func() {
 		<-c
 		panic(nil)
 	}()
 
 	if len(os.Getenv("IPERF")) != 0 {
-		cmd := exec.Command("iperf3", "-s", "", "-p", "5203")
-		go iperfExec(cmd)
+		cmd0 := exec.Command("iperf3", "-s", "", "-p", "5203")
+		iperfExec(cmd0)
+		pid := cmd0.Process.Pid
+		go cmd0.Wait()
 
 		Accelerate("tcp://:41501-41504", "tcp://127.0.0.1:5203", BACKEND)
 		//Accelerate("tcp://:41501-41504", "tcp://54.222.184.194:5201", BACKEND)
@@ -193,8 +195,10 @@ func TestIPERF(t *testing.T) {
 
 		//iperfExec(exec.Command("iperf3", "-c", "127.0.0.1", "-p", "50500", "-R", "-P", "3"))
 		//iperfExec(exec.Command("iperf3", "-c", "127.0.0.1", "-p", "50500", "-b", "10M"))
-		iperfExec(exec.Command("iperf3", "-c", "127.0.0.1", "-p", "50500"))
-		pgid, err := syscall.Getpgid(cmd.Process.Pid)
+		cmd1 := exec.Command("iperf3", "-c", "127.0.0.1", "-p", "50500")
+		iperfExec(cmd1)
+		cmd1.Wait()
+		pgid, err := syscall.Getpgid(pid)
 		if err == nil {
 			syscall.Kill(-pgid, 15) // note the minus sign
 		}
@@ -209,5 +213,4 @@ func iperfExec(cmd *exec.Cmd) {
 	if err != nil {
 		logrus.Fatalln(err)
 	}
-	cmd.Wait()
 }
