@@ -204,6 +204,7 @@ func (mux *ServeMux) write(p *packet) error {
 	for _, u := range mux.pool.pickupstreams() {
 		wg.Add(1)
 		go func(up *upstream){
+			defer wg.Done()
 			err := up.sendpacket(p)
 			if err != nil {
 				logrus.WithFields(logrus.Fields{
