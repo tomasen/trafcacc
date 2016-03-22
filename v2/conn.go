@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"net"
+	"fmt"
 	"sync/atomic"
 	"time"
 )
@@ -62,17 +63,26 @@ func (c *packetconn) Read(b []byte) (n int, err error) {
 // after a fixed time limit; see SetDeadline and SetWriteDeadline.
 func (c *packetconn) Write(b []byte) (n int, err error) {
 	// TODO: You can not send messages (datagrams) larger than 2^16 65536 octets with UDP.
-	err = c.write(&packet{
-		Senderid: c.senderid,
-		Seqid:    atomic.AddUint32(&c.seqid, 1),
-		Connid:   c.connid,
-		Buf:      b,
-	})
-	if err == nil {
-		n = len(b)
+	for n := 0; n < len(b); n+=mtu {
+		sz := len(b) - n
+		if sz > mtu {
+			sz = mtu
+		}
+		if n > 0 {
+			fmt.Println(n, sz, mtu)
+		}
+		err = c.write(&packet{
+			Senderid: c.senderid,
+			Seqid:    atomic.AddUint32(&c.seqid, 1),
+			Connid:   c.connid,
+			Buf:      b[n:sz],
+		})
+		if err != nil {
+			return n, err
+		}
 	}
 
-	return n, err
+	return len(b), err
 }
 
 // Close closes the connection.
