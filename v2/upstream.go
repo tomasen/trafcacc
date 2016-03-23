@@ -177,7 +177,7 @@ func (pool *streampool) pickupstreams() []*upstream {
 		return []*upstream{
 			pool.udpool[rn%pool.udplen],
 			pool.tcpool[rn%pool.tcplen],
-			pool.udpool[(rn+1)%pool.udplen],
+			//pool.udpool[(rn+1)%pool.udplen],
 		}
 	case pool.tcplen == 0 || pool.udplen == 0:
 		// pick 1-2 alived

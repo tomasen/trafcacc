@@ -149,12 +149,6 @@ func testHTTP(bc, fc, lport string, t *testing.T) {
 	t1 := Accelerate("tcp://:"+lport, fc, FRONTEND)
 	t1.WaitforAlive()
 
-	go func() {
-		<-time.After(time.Second)
-		t0.Status()
-		t1.Status()
-	}()
-
 	client := &http.Client{}
 	req, _ := http.NewRequest("GET", "http://127.0.0.1:"+lport+"/robots.txt", nil)
 	req.Host = "bing.com"
@@ -171,6 +165,9 @@ func testHTTP(bc, fc, lport string, t *testing.T) {
 	if !strings.Contains(string(robots), "Sitemap: http://www.bing.com/") {
 		t.Fail()
 	}
+
+	t0.Status()
+	t1.Status()
 }
 
 //
@@ -209,14 +206,6 @@ func TestIPERF(t *testing.T) {
 		t1 := Accelerate("tcp://:50500", "tcp://127.0.0.1:41501-41504,udp://127.0.0.1:42401-42404", FRONTEND)
 		t1.WaitforAlive()
 
-		go func() {
-			ct := time.Tick(time.Second)
-			for _ = range ct {
-				t0.Status()
-				t1.Status()
-			}
-		}()
-
 		//iperfExec(exec.Command("iperf3", "-c", "127.0.0.1", "-p", "50500", "-R", "-P", "3"))
 		//iperfExec(exec.Command("iperf3", "-c", "127.0.0.1", "-p", "50500", "-b", "10M"))
 		cmd1 := exec.Command("iperf3", "-c", "127.0.0.1", "-p", "50500")
@@ -234,6 +223,10 @@ func TestIPERF(t *testing.T) {
 		cmd2 := exec.Command("iperf3", "-c", "127.0.0.1", "-p", "50500", "-R")
 		iperfExec(cmd2)
 		cmd2.Wait()
+
+		t0.Status()
+		t1.Status()
+
 		pgid, err := syscall.Getpgid(pid)
 		if err == nil {
 			syscall.Kill(-pgid, 15) // note the minus sign
