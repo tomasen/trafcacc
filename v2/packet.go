@@ -28,6 +28,21 @@ type packet struct {
 	Cmd      cmd
 }
 
+func (p *packet) copy() *packet {
+	var buf []byte
+	if len(p.Buf) > 0 {
+		buf = make([]byte, len(p.Buf))
+		copy(buf, p.Buf)
+	}
+	return &packet{
+		Senderid: p.Senderid,
+		Connid:   p.Connid,
+		Seqid:    p.Seqid,
+		Cmd:      p.Cmd,
+		Buf:      buf,
+	}
+}
+
 type queue struct {
 	*sync.Cond
 	queue        map[uint32]*packet

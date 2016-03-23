@@ -83,7 +83,7 @@ func (c *packetconn) Write(b []byte) (n int, err error) {
 			})
 			if e0 != nil {
 				//return n, err
-				atomic.StoreInt64(&sent, int64(n))
+				atomic.StoreInt64(&sent, int64(b0))
 			}
 		}(n, n+sz, atomic.AddUint32(&c.seqid, 1))
 	}
