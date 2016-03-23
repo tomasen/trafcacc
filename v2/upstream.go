@@ -102,14 +102,17 @@ func (u *upstream) isAlive() bool {
 
 type streampool struct {
 	*sync.Cond
+	mux      *sync.RWMutex
 	pool     []*upstream
 	atomicid uint64
 }
 
 func newStreamPool() *streampool {
+	mux := &sync.RWMutex{}
 	return &streampool{
 		// TODO: use RWMutex maybe?
-		Cond: sync.NewCond(&sync.Mutex{}),
+		Cond: sync.NewCond(mux),
+		mux:  mux,
 	}
 }
 
@@ -136,8 +139,8 @@ func (pool *streampool) pickupstreams() []*upstream {
 	pool.waitforalive()
 
 	// pick udp and tcp equally
-	pool.L.Lock()
-	defer pool.L.Unlock()
+	pool.mux.RLock()
+	defer pool.mux.RUnlock()
 	var tcpalived []*upstream
 	var udpalived []*upstream
 	for _, v := range pool.pool {
@@ -234,6 +237,10 @@ func (pool *streampool) write(p *packet) error {
 		return nil
 	}
 
+	logrus.WithFields(logrus.Fields{
+		"error": "no successed write",
+	}).Warnln("encode packet to upstream error")
+
 	// return error if all failed
-	return errors.New("dialer encoder error")
+	return errors.New("encoder error")
 }

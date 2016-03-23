@@ -14,24 +14,8 @@ import (
 	"github.com/Sirupsen/logrus"
 )
 
-// NewDialer TODO: comment
-func NewDialer() Dialer {
-
-	return &dialer{
-		pool:     newStreamPool(),
-		identity: rand.Uint32(),
-		pqd:      newPacketQueue(),
-	}
-}
-
 // Dialer TODO: comment
-type Dialer interface {
-	Setup(server string)
-	Dial() (net.Conn, error)
-	DialTimeout(timeout time.Duration) (net.Conn, error)
-}
-
-type dialer struct {
+type Dialer struct {
 	pool *streampool
 
 	identity uint32
@@ -42,8 +26,18 @@ type dialer struct {
 	udpbuf []byte
 }
 
+// NewDialer TODO: comment
+func NewDialer() *Dialer {
+
+	return &Dialer{
+		pool:     newStreamPool(),
+		identity: rand.Uint32(),
+		pqd:      newPacketQueue(),
+	}
+}
+
 // Setup upstream servers
-func (d *dialer) Setup(server string) {
+func (d *Dialer) Setup(server string) {
 	for _, e := range parse(server) {
 		grp := 0
 		for p := e.portBegin; p <= e.portEnd; p++ {
@@ -56,7 +50,7 @@ func (d *dialer) Setup(server string) {
 }
 
 // Dial acts like net.Dial
-func (d *dialer) Dial() (net.Conn, error) {
+func (d *Dialer) Dial() (net.Conn, error) {
 	return d.DialTimeout(time.Duration(0))
 }
 
@@ -66,7 +60,7 @@ func (d *dialer) Dial() (net.Conn, error) {
 //
 // The default is 0 means no timeout.
 //
-func (d *dialer) DialTimeout(timeout time.Duration) (net.Conn, error) {
+func (d *Dialer) DialTimeout(timeout time.Duration) (net.Conn, error) {
 	// wait for upstream online and alive
 	ch := make(chan struct{}, 1)
 	go func() {
@@ -102,17 +96,17 @@ func (d *dialer) DialTimeout(timeout time.Duration) (net.Conn, error) {
 	return conn, nil
 }
 
-func (d *dialer) pq() *packetQueue {
+func (d *Dialer) pq() *packetQueue {
 	return d.pqd
 }
 
-func (d *dialer) role() string {
+func (d *Dialer) role() string {
 	// TODO: return tag
 	return "dialer"
 }
 
 // connect to upstream server and keep tunnel alive
-func (d *dialer) connect(u *upstream) {
+func (d *Dialer) connect(u *upstream) {
 	for {
 		conn, err := net.Dial(u.proto, u.addr)
 		if err != nil {
@@ -146,7 +140,7 @@ func (d *dialer) connect(u *upstream) {
 	}
 }
 
-func (d *dialer) readloop(u *upstream) {
+func (d *Dialer) readloop(u *upstream) {
 	for {
 		p := packet{}
 		if u.proto == tcp {
@@ -190,7 +184,7 @@ func (d *dialer) readloop(u *upstream) {
 	}
 }
 
-func (d *dialer) write(p *packet) error {
+func (d *Dialer) write(p *packet) error {
 	p.Senderid = d.identity
 
 	// return error if all failed
@@ -198,7 +192,7 @@ func (d *dialer) write(p *packet) error {
 }
 
 // push packet to packet queue
-func (d *dialer) push(p *packet) {
+func (d *Dialer) push(p *packet) {
 
 	switch p.Cmd {
 	case connected:

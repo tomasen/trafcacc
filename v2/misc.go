@@ -21,6 +21,16 @@ func (t *trafcacc) Status() {
 		"HeapObjects":  s.HeapObjects,
 	}
 
+	if logrus.GetLevel() >= logrus.DebugLevel {
+		t.pool.mux.RLock()
+		ustat := ""
+		for _, v := range t.pool.pool {
+			ustat += "S(" + humanize.Bytes(v.sent) + ")R(" + humanize.Bytes(v.recv) + ")"
+		}
+		t.pool.mux.RUnlock()
+		fields["UP"] = ustat
+	}
+
 	logrus.WithFields(fields).Infoln(t.roleString(), "status")
 }
 

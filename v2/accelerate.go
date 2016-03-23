@@ -27,7 +27,7 @@ const (
 type trafcacc struct {
 	role   tag
 	remote *upstream
-	dialer Dialer
+	pool   *streampool
 }
 
 // Trafcacc give a interface to query running status
@@ -68,14 +68,16 @@ func (t *trafcacc) accelerate(l, u string) {
 		if t.remote == nil {
 			logrus.Fatalln("didn't specify remote addr for backend")
 		}
-		svr := NewServeMux()
-		svr.Handle(l, t)
+		serve := NewServeMux()
+		serve.Handle(l, t)
+		t.pool = serve.pool
 
 	case FRONTEND:
 		// TODO: listen to l
 		// use trafcacc.Dialer to init connection to u
-		t.dialer = NewDialer()
-		t.dialer.Setup(u)
+		dialer := NewDialer()
+		dialer.Setup(u)
+		t.pool = dialer.pool
 
 		for _, e := range parse(l) {
 			for p := e.portBegin; p <= e.portEnd; p++ {
@@ -89,7 +91,7 @@ func (t *trafcacc) accelerate(l, u string) {
 				}
 
 				go acceptTCP(ln, func(conn net.Conn) {
-					up, err := t.dialer.Dial()
+					up, err := dialer.Dial()
 					if err != nil {
 						// handle error
 						logrus.WithFields(logrus.Fields{
