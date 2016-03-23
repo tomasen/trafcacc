@@ -4,13 +4,17 @@ import (
 	"io"
 	"net"
 	"strconv"
+	"sync"
 
 	"github.com/Sirupsen/logrus"
 )
 
 // Accelerate traffic by setup front-end dialer and back-end server
 func Accelerate(l, u string, role tag) Trafcacc {
-	t := &trafcacc{role: role}
+	t := &trafcacc{
+		role: role,
+		Cond: sync.NewCond(&sync.Mutex{}),
+	}
 	t.accelerate(l, u)
 	return t
 }
@@ -25,6 +29,8 @@ const (
 )
 
 type trafcacc struct {
+	*sync.Cond
+	alive  bool
 	role   tag
 	remote *upstream
 	pool   *streampool
@@ -71,6 +77,10 @@ func (t *trafcacc) accelerate(l, u string) {
 		serve := NewServeMux()
 		serve.Handle(l, t)
 		t.pool = serve.pool
+		go func() {
+			serve.waitforalive()
+			t.setalive()
+		}()
 
 	case FRONTEND:
 		// TODO: listen to l
@@ -89,7 +99,7 @@ func (t *trafcacc) accelerate(l, u string) {
 						"endpoint": e,
 					}).Fatalln("frontend listen to address error")
 				}
-
+				t.setalive()
 				go acceptTCP(ln, func(conn net.Conn) {
 					up, err := dialer.Dial()
 					if err != nil {
@@ -114,7 +124,18 @@ func (t *trafcacc) accelerate(l, u string) {
 }
 
 func (t *trafcacc) WaitforAlive() {
-	// TODO:
+	t.L.Lock()
+	for !t.alive {
+		t.Wait()
+	}
+	t.L.Unlock()
+}
+
+func (t *trafcacc) setalive() {
+	t.L.Lock()
+	t.alive = true
+	t.L.Unlock()
+	t.Broadcast()
 }
 
 func (t *trafcacc) roleString() string {

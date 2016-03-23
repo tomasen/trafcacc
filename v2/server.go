@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"net"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -13,6 +14,8 @@ import (
 
 // ServeMux TODO: comment
 type ServeMux struct {
+	*sync.Cond
+	alive bool
 	// contains filtered or unexported fields
 	handler Handler
 	pool    *streampool
@@ -35,6 +38,7 @@ func (f handlerFunc) Serve(c net.Conn) {
 // NewServeMux allocates and returns a new ServeMux.
 func NewServeMux() *ServeMux {
 	return &ServeMux{
+		Cond: sync.NewCond(&sync.Mutex{}),
 		pqs:  newPacketQueue(),
 		pool: newStreamPool(),
 	}
@@ -54,8 +58,23 @@ func (mux *ServeMux) Handle(listento string, handler Handler) {
 		for p := e.portBegin; p <= e.portEnd; p++ {
 			s := serv{ServeMux: mux, proto: e.proto, addr: net.JoinHostPort(e.host, strconv.Itoa(p))}
 			s.listen()
+			go func() {
+				s.waitforalive()
+				mux.L.Lock()
+				mux.alive = true
+				mux.L.Unlock()
+				mux.Broadcast()
+			}()
 		}
 	}
+}
+
+func (mux *ServeMux) waitforalive() {
+	mux.L.Lock()
+	for !mux.alive {
+		mux.Wait()
+	}
+	mux.L.Unlock()
 }
 
 func (mux *ServeMux) pq() *packetQueue {
@@ -70,6 +89,22 @@ type serv struct {
 	*ServeMux
 	proto string
 	addr  string
+	alive bool
+}
+
+func (s *serv) waitforalive() {
+	s.L.Lock()
+	for !s.alive {
+		s.Wait()
+	}
+	s.L.Unlock()
+}
+
+func (s *serv) setalive() {
+	s.L.Lock()
+	s.alive = true
+	s.L.Unlock()
+	s.Broadcast()
 }
 
 func (s *serv) listen() {
@@ -79,6 +114,8 @@ func (s *serv) listen() {
 		if err != nil {
 			logrus.Fatalln("net.Listen error", s.addr, err)
 		}
+
+		s.setalive()
 
 		if logrus.GetLevel() >= logrus.DebugLevel {
 			logrus.Debugln("listen to", s.addr)
@@ -93,6 +130,9 @@ func (s *serv) listen() {
 		if err != nil {
 			logrus.Fatalln("net.ListenUDP error", udpaddr, err)
 		}
+
+		s.setalive()
+
 		go func() {
 			for {
 				s.udphandler(udpconn)

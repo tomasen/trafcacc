@@ -3,6 +3,7 @@ package trafcacc
 import (
 	"net"
 	"runtime"
+	"sync/atomic"
 	"time"
 
 	"github.com/Sirupsen/logrus"
@@ -25,7 +26,8 @@ func (t *trafcacc) Status() {
 		t.pool.mux.RLock()
 		ustat := ""
 		for _, v := range t.pool.pool {
-			ustat += "S(" + humanize.Bytes(v.sent) + ")R(" + humanize.Bytes(v.recv) + ")"
+			ustat += "(S" + humanize.Bytes(atomic.LoadUint64(&v.sent)) + ","
+			ustat += "R" + humanize.Bytes(atomic.LoadUint64(&v.recv)) + ")"
 		}
 		t.pool.mux.RUnlock()
 		fields["UP"] = ustat

@@ -19,8 +19,6 @@ import (
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
-	// -listen=tcp://:500 -upstream=udp://172.0.0.1:2000-2100
-	// -listen=udp://:2000-2100 -upstream=tcp://172.0.0.1:500
 	listen := flag.String("listen", "<proto>://<ip>:<port begin-end>[,...] eg. udp://0.0.0.0:500", "listen to")
 	upstream := flag.String("upstream", "<proto>://<ip>:<port begin-end>[,...] eg. udp://172.0.0.1:2000-2100,192.168.1.1:2000-2050", "send to")
 	role := flag.String("role", "frontend", "work as backend or frontend")
@@ -49,6 +47,7 @@ func main() {
 	default:
 		t = trafcacc.Accelerate(*listen, *upstream, trafcacc.FRONTEND)
 	}
+	t.WaitforAlive()
 
 	if len(*pprof) != 0 {
 		go func() {

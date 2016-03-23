@@ -136,8 +136,11 @@ func TestHTTPviaUDP(t *testing.T) {
 
 func testHTTP(bc, fc, lport string, t *testing.T) {
 
-	Accelerate(bc, "tcp://bing.com:80", BACKEND)
-	Accelerate("tcp://:"+lport, fc, FRONTEND)
+	t0 := Accelerate(bc, "tcp://bing.com:80", BACKEND)
+	t0.WaitforAlive()
+
+	t1 := Accelerate("tcp://:"+lport, fc, FRONTEND)
+	t1.WaitforAlive()
 
 	client := &http.Client{}
 	req, _ := http.NewRequest("GET", "http://127.0.0.1:"+lport+"/robots.txt", nil)
@@ -188,9 +191,9 @@ func TestIPERF(t *testing.T) {
 		go cmd0.Wait()
 
 		t0 := Accelerate("tcp://:41501-41504,udp://:42401-42404", "tcp://127.0.0.1:5203", BACKEND)
-		time.Sleep(time.Second / 2)
+		t0.WaitforAlive()
 		t1 := Accelerate("tcp://:50500", "tcp://127.0.0.1:41501-41504,udp://127.0.0.1:42401-42404", FRONTEND)
-		time.Sleep(time.Second / 2)
+		t1.WaitforAlive()
 
 		go func() {
 			ct := time.Tick(time.Second)
