@@ -17,6 +17,7 @@ type upstream struct {
 	uuid  uint64
 	proto string
 	alive int64
+	grp   int
 
 	// status recorder
 	sent uint64
@@ -112,7 +113,7 @@ func newStreamPool() *streampool {
 	}
 }
 
-func (pool *streampool) append(u *upstream) {
+func (pool *streampool) append(u *upstream, grp int) {
 	pool.L.Lock()
 	defer func() {
 		pool.L.Unlock()
@@ -127,6 +128,7 @@ func (pool *streampool) append(u *upstream) {
 		}
 	}
 	u.uuid = atomic.AddUint64(&pool.atomicid, 1)
+	u.grp = grp
 	pool.pool = append(pool.pool, u)
 }
 
@@ -206,4 +208,32 @@ func (pool *streampool) remove(u *upstream) {
 	}
 	pool.L.Unlock()
 	pool.Broadcast()
+}
+
+func (pool *streampool) write(p *packet) error {
+	var successed uint32
+
+	var wg sync.WaitGroup
+	// pick upstream tunnel and send packet
+	for _, u := range pool.pickupstreams() {
+		wg.Add(1)
+		go func(up *upstream) {
+			defer wg.Done()
+			err := up.sendpacket(p)
+			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"error": err,
+				}).Warnln("Dialer encode packet to upstream errror")
+			} else {
+				atomic.StoreUint32(&successed, 1)
+			}
+		}(u)
+	}
+	wg.Wait()
+	if successed != 0 {
+		return nil
+	}
+
+	// return error if all failed
+	return errors.New("dialer encoder error")
 }

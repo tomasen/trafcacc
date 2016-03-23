@@ -8,7 +8,6 @@ import (
 	"math/rand"
 	"net"
 	"strconv"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -46,11 +45,13 @@ type dialer struct {
 // Setup upstream servers
 func (d *dialer) Setup(server string) {
 	for _, e := range parse(server) {
+		grp := 0
 		for p := e.portBegin; p <= e.portEnd; p++ {
 			u := upstream{proto: e.proto, addr: net.JoinHostPort(e.host, strconv.Itoa(p))}
-			d.pool.append(&u)
+			d.pool.append(&u, grp)
 			go d.connect(&u)
 		}
+		grp++
 	}
 }
 
@@ -191,31 +192,9 @@ func (d *dialer) readloop(u *upstream) {
 
 func (d *dialer) write(p *packet) error {
 	p.Senderid = d.identity
-	var successed uint32
-
-	var wg sync.WaitGroup
-	// pick upstream tunnel and send packet
-	for _, u := range d.pool.pickupstreams() {
-		wg.Add(1)
-		go func(up *upstream) {
-			defer wg.Done()
-			err := up.sendpacket(p)
-			if err != nil {
-				logrus.WithFields(logrus.Fields{
-					"error": err,
-				}).Warnln("Dialer encode packet to upstream errror")
-			} else {
-				atomic.StoreUint32(&successed, 1)
-			}
-		}(u)
-	}
-	wg.Wait()
-	if successed != 0 {
-		return nil
-	}
 
 	// return error if all failed
-	return errors.New("dialer encoder error")
+	return d.pool.write(p)
 }
 
 // push packet to packet queue

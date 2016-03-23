@@ -3,10 +3,8 @@ package trafcacc
 import (
 	"bytes"
 	"encoding/gob"
-	"errors"
 	"net"
 	"strconv"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -109,7 +107,7 @@ func (s *serv) udphandler(conn *net.UDPConn) {
 		udpconn: conn,
 	}
 	// add to pool
-	s.pool.append(&u)
+	s.pool.append(&u, 0)
 	defer func() {
 		u.close()
 		s.pool.remove(&u)
@@ -171,7 +169,7 @@ func (s *serv) tcphandler(conn net.Conn) {
 		s.pool.remove(&u)
 	}()
 
-	s.pool.append(&u)
+	s.pool.append(&u, 0)
 
 	for {
 		p := packet{}
@@ -200,33 +198,8 @@ func (s *serv) tcphandler(conn net.Conn) {
 }
 
 func (mux *ServeMux) write(p *packet) error {
-	var successed uint32
 
-	var wg sync.WaitGroup
-	// pick upstream tunnel and send packet
-	for _, u := range mux.pool.pickupstreams() {
-		wg.Add(1)
-		go func(up *upstream) {
-			defer wg.Done()
-			err := up.sendpacket(p)
-			if err != nil {
-				logrus.WithFields(logrus.Fields{
-					"error": err,
-				}).Warnln("Server encode packet to upstream error")
-			} else {
-				atomic.StoreUint32(&successed, 1)
-			}
-		}(u)
-	}
-	wg.Wait()
-	if successed != 0 {
-		// return error if all failed
-		return nil
-	}
-	logrus.WithFields(logrus.Fields{
-		"error": "no successed write",
-	}).Warnln("Server encode packet to upstream error")
-	return errors.New("server encoder error")
+	return mux.pool.write(p)
 }
 
 func (s *serv) push(p *packet) {
