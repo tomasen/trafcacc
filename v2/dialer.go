@@ -156,6 +156,7 @@ func (d *dialer) readloop(u *upstream) {
 				}).Warnln("Dialer docode upstream packet")
 				break
 			}
+			atomic.AddUint64(&u.recv, uint64(len(p.Buf)))
 		} else { //  if u.proto == udp
 			udpbuf := udpBufferPool.Get().([]byte)
 			defer udpBufferPool.Put(udpbuf)
@@ -168,6 +169,7 @@ func (d *dialer) readloop(u *upstream) {
 				logrus.WithError(err).Warnln("dialer gop decode from udp error")
 				continue
 			}
+			atomic.AddUint64(&u.recv, uint64(len(p.Buf)))
 		}
 		if p.Cmd == pong {
 			// set alive only when received pong

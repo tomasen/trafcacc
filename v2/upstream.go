@@ -18,6 +18,10 @@ type upstream struct {
 	proto string
 	alive int64
 
+	// status recorder
+	sent uint64
+	recv uint64
+
 	// tcp only
 	encoder *gob.Encoder
 	decoder *gob.Decoder
@@ -37,6 +41,7 @@ func (u *upstream) send(cmd cmd) error {
 }
 
 func (u *upstream) sendpacket(p *packet) error {
+	atomic.AddUint64(&u.sent, uint64(len(p.Buf)))
 	switch u.proto {
 	case tcp:
 		err := u.encoder.Encode(p)

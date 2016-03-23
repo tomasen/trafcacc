@@ -133,6 +133,8 @@ func (s *serv) udphandler(conn *net.UDPConn) {
 			continue
 		}
 
+		atomic.AddUint64(&u.recv, uint64(len(p.Buf)))
+
 		switch p.Cmd {
 		case ping:
 			atomic.StoreInt64(&u.alive, time.Now().UnixNano())
@@ -178,6 +180,7 @@ func (s *serv) tcphandler(conn net.Conn) {
 			logrus.Warnln("packetHandler() Decode err:", err)
 			break
 		}
+		atomic.AddUint64(&u.recv, uint64(len(p.Buf)))
 
 		switch p.Cmd {
 		case ping:
