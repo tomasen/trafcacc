@@ -30,17 +30,36 @@ func (t *trafcacc) Status() {
 
 	if logrus.GetLevel() >= logrus.DebugLevel {
 		t.pool.mux.RLock()
-		var up, down string
+		var us, ts, ur, tr string
+		var su, st, ru, rt uint64
 		for _, v := range t.pool.pool {
-			up += "(" + strings.Replace(humanize.Bytes(atomic.LoadUint64(&v.sent)), " ", "", -1) + ")"
-			down += "(" + strings.Replace(humanize.Bytes(atomic.LoadUint64(&v.recv)), " ", "", -1) + ")"
+			s := atomic.LoadUint64(&v.sent)
+			r := atomic.LoadUint64(&v.recv)
+			if v.proto == udp {
+				su += s
+				ru += r
+				us += humanbyte(s) + ","
+				ur += humanbyte(r) + ","
+			} else {
+				st += s
+				rt += r
+				ts += humanbyte(s) + ","
+				tr += humanbyte(r) + ","
+			}
 		}
 		t.pool.mux.RUnlock()
-		fields["UP"] = up
-		fields["DOWN"] = down
+		fields["Sent(U)"] = humanbyte(su) + "(" + strings.TrimRight(us, ",") + ")"
+		fields["Recv(U)"] = humanbyte(ru) + "(" + strings.TrimRight(ur, ",") + ")"
+
+		fields["Sent(T)"] = humanbyte(st) + "(" + strings.TrimRight(ts, ",") + ")"
+		fields["Recv(T)"] = humanbyte(rt) + "(" + strings.TrimRight(tr, ",") + ")"
 	}
 
 	logrus.WithFields(fields).Infoln(t.roleString(), "status")
+}
+
+func humanbyte(n uint64) string {
+	return strings.Replace(humanize.Bytes(n), " ", "", 1)
 }
 
 func acceptTCP(ln net.Listener, f func(net.Conn)) {

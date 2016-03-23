@@ -169,19 +169,19 @@ func (pool *streampool) pickupstreams() []*upstream {
 
 	// pick one of each
 
-	rn := rand.Intn(pool.alvlen)
+	rn := int(rand.Int31())
 
 	switch {
 	case pool.tcplen > 0 && pool.udplen > 0:
 		// pick one of each
 		return []*upstream{
-			pool.tcpool[rn%pool.tcplen],
 			pool.udpool[rn%pool.udplen],
+			pool.tcpool[rn%pool.tcplen],
 		}
 	case pool.tcplen == 0 || pool.udplen == 0:
 		// pick 1-2 alived
 		return []*upstream{
-			pool.alived[rn],
+			pool.alived[rn%pool.alvlen],
 			pool.alived[(rn+1)%pool.alvlen],
 		}
 	}

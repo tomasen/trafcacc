@@ -3,12 +3,14 @@ package trafcacc
 import (
 	"encoding/gob"
 	"io/ioutil"
+	"log"
 	"math/rand"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
+	"runtime/pprof"
 	"strings"
 	"syscall"
 	"testing"
@@ -214,6 +216,14 @@ func TestIPERF(t *testing.T) {
 		//iperfExec(exec.Command("iperf3", "-c", "127.0.0.1", "-p", "50500", "-b", "10M"))
 		cmd1 := exec.Command("iperf3", "-c", "127.0.0.1", "-p", "50500")
 		iperfExec(cmd1)
+		if len(os.Getenv("CPU")) != 0 {
+			f, err := os.Create("cpu.profile")
+			if err != nil {
+				log.Fatal(err)
+			}
+			pprof.StartCPUProfile(f)
+			defer pprof.StopCPUProfile()
+		}
 		cmd1.Wait()
 		pgid, err := syscall.Getpgid(pid)
 		if err == nil {
