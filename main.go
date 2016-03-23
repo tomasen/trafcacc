@@ -10,9 +10,6 @@ import (
 
 	"github.com/tomasen/trafcacc/v2"
 
-	"net/http"
-	_ "net/http/pprof"
-
 	"github.com/Sirupsen/logrus"
 )
 
@@ -50,9 +47,9 @@ func main() {
 	t.WaitforAlive()
 
 	if len(*pprof) != 0 {
-		go func() {
-			logrus.Println(http.ListenAndServe(*pprof, nil))
-		}()
+		// go func() {
+		// 	logrus.Println(http.ListenAndServe(*pprof, nil))
+		// }()
 	}
 
 	go func() {

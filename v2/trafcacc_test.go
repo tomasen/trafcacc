@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	//_ "net/http/pprof"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -30,6 +31,10 @@ func TestMain(tm *testing.M) {
 			time.Sleep(time.Second * 15)
 			panic("case test took too long")
 		}()
+	} else {
+		// go func() {
+		// 	logrus.Println(http.ListenAndServe(":60063", nil))
+		// }()
 	}
 	os.Exit(tm.Run())
 }
