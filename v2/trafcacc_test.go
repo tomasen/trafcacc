@@ -142,6 +142,12 @@ func testHTTP(bc, fc, lport string, t *testing.T) {
 	t1 := Accelerate("tcp://:"+lport, fc, FRONTEND)
 	t1.WaitforAlive()
 
+	go func() {
+		<-time.After(time.Second)
+		t0.Status()
+		t1.Status()
+	}()
+
 	client := &http.Client{}
 	req, _ := http.NewRequest("GET", "http://127.0.0.1:"+lport+"/robots.txt", nil)
 	req.Host = "bing.com"

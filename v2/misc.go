@@ -3,6 +3,7 @@ package trafcacc
 import (
 	"net"
 	"runtime"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -24,13 +25,14 @@ func (t *trafcacc) Status() {
 
 	if logrus.GetLevel() >= logrus.DebugLevel {
 		t.pool.mux.RLock()
-		ustat := ""
+		var up, down string
 		for _, v := range t.pool.pool {
-			ustat += "(S" + humanize.Bytes(atomic.LoadUint64(&v.sent)) + ","
-			ustat += "R" + humanize.Bytes(atomic.LoadUint64(&v.recv)) + ")"
+			up += "(" + strings.Replace(humanize.Bytes(atomic.LoadUint64(&v.sent)), " ", "", -1) + ")"
+			down += "(" + strings.Replace(humanize.Bytes(atomic.LoadUint64(&v.recv)), " ", "", -1) + ")"
 		}
 		t.pool.mux.RUnlock()
-		fields["UP"] = ustat
+		fields["UP"] = up
+		fields["DOWN"] = down
 	}
 
 	logrus.WithFields(fields).Infoln(t.roleString(), "status")
