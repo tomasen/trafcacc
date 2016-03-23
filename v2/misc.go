@@ -4,11 +4,16 @@ import (
 	"net"
 	"runtime"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/dustin/go-humanize"
+)
+
+var (
+	udpBufferPool = &sync.Pool{New: func() interface{} { return make([]byte, buffersize) }}
 )
 
 func (t *trafcacc) Status() {

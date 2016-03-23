@@ -14,8 +14,7 @@ import (
 	"github.com/Sirupsen/logrus"
 )
 
-// Dialer TODO: comment
-type Dialer struct {
+type dialer struct {
 	pool *streampool
 
 	identity uint32
@@ -27,9 +26,9 @@ type Dialer struct {
 }
 
 // NewDialer TODO: comment
-func NewDialer() *Dialer {
+func NewDialer() Dialer {
 
-	return &Dialer{
+	return &dialer{
 		pool:     newStreamPool(),
 		identity: rand.Uint32(),
 		pqd:      newPacketQueue(),
@@ -37,7 +36,7 @@ func NewDialer() *Dialer {
 }
 
 // Setup upstream servers
-func (d *Dialer) Setup(server string) {
+func (d *dialer) Setup(server string) {
 	for _, e := range parse(server) {
 		grp := 0
 		for p := e.portBegin; p <= e.portEnd; p++ {
@@ -50,7 +49,7 @@ func (d *Dialer) Setup(server string) {
 }
 
 // Dial acts like net.Dial
-func (d *Dialer) Dial() (net.Conn, error) {
+func (d *dialer) Dial() (net.Conn, error) {
 	return d.DialTimeout(time.Duration(0))
 }
 
@@ -60,7 +59,7 @@ func (d *Dialer) Dial() (net.Conn, error) {
 //
 // The default is 0 means no timeout.
 //
-func (d *Dialer) DialTimeout(timeout time.Duration) (net.Conn, error) {
+func (d *dialer) DialTimeout(timeout time.Duration) (net.Conn, error) {
 	// wait for upstream online and alive
 	ch := make(chan struct{}, 1)
 	go func() {
@@ -96,17 +95,21 @@ func (d *Dialer) DialTimeout(timeout time.Duration) (net.Conn, error) {
 	return conn, nil
 }
 
-func (d *Dialer) pq() *packetQueue {
+func (d *dialer) streampool() *streampool {
+	return d.pool
+}
+
+func (d *dialer) pq() *packetQueue {
 	return d.pqd
 }
 
-func (d *Dialer) role() string {
+func (d *dialer) role() string {
 	// TODO: return tag
 	return "dialer"
 }
 
 // connect to upstream server and keep tunnel alive
-func (d *Dialer) connect(u *upstream) {
+func (d *dialer) connect(u *upstream) {
 	for {
 		conn, err := net.Dial(u.proto, u.addr)
 		if err != nil {
@@ -140,7 +143,7 @@ func (d *Dialer) connect(u *upstream) {
 	}
 }
 
-func (d *Dialer) readloop(u *upstream) {
+func (d *dialer) readloop(u *upstream) {
 	for {
 		p := packet{}
 		if u.proto == tcp {
@@ -184,7 +187,7 @@ func (d *Dialer) readloop(u *upstream) {
 	}
 }
 
-func (d *Dialer) write(p *packet) error {
+func (d *dialer) write(p *packet) error {
 	p.Senderid = d.identity
 
 	// return error if all failed
@@ -192,7 +195,7 @@ func (d *Dialer) write(p *packet) error {
 }
 
 // push packet to packet queue
-func (d *Dialer) push(p *packet) {
+func (d *dialer) push(p *packet) {
 
 	switch p.Cmd {
 	case connected:

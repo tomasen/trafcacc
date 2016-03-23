@@ -87,7 +87,7 @@ func (t *trafcacc) accelerate(l, u string) {
 		// use trafcacc.Dialer to init connection to u
 		dialer := NewDialer()
 		dialer.Setup(u)
-		t.pool = dialer.pool
+		t.pool = dialer.streampool()
 
 		for _, e := range parse(l) {
 			for p := e.portBegin; p <= e.portEnd; p++ {

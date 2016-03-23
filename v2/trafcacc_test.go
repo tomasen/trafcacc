@@ -184,10 +184,11 @@ func TestIPERF(t *testing.T) {
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
-	// signal.Notify(c, syscall.SIGTERM)
+	signal.Notify(c, syscall.SIGTERM)
 	go func() {
-		<-c
-		panic(nil)
+		if <-c != syscall.SIGTERM {
+			panic(nil)
+		}
 	}()
 
 	if len(os.Getenv("IPERF")) != 0 {

@@ -3,7 +3,7 @@
 package trafcacc
 
 import (
-	"sync"
+	"net"
 	"time"
 )
 
@@ -20,6 +20,10 @@ const (
 	udp = "udp"
 )
 
-var (
-	udpBufferPool = &sync.Pool{New: func() interface{} { return make([]byte, buffersize) }}
-)
+// Dialer TODO: comment
+type Dialer interface {
+	Setup(string)
+	Dial() (net.Conn, error)
+	DialTimeout(timeout time.Duration) (net.Conn, error)
+	streampool() *streampool
+}
