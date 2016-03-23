@@ -137,6 +137,9 @@ func (d *dialer) connect(u *upstream) {
 			continue
 		}
 
+		atomic.StoreInt64(&u.alive, time.Now().UnixNano())
+		d.pool.Broadcast()
+
 		d.readloop(u)
 
 		u.close()
