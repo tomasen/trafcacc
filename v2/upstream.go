@@ -105,15 +105,25 @@ type streampool struct {
 	mux      *sync.RWMutex
 	pool     []*upstream
 	atomicid uint64
+	alive    bool
+
+	// for pick up streams
+	tcpool                 []*upstream
+	udpool                 []*upstream
+	alived                 []*upstream
+	tcplen, udplen, alvlen int
 }
 
 func newStreamPool() *streampool {
 	mux := &sync.RWMutex{}
-	return &streampool{
-		// TODO: use RWMutex maybe?
+	pl := &streampool{
+		// use RWMutex
 		Cond: sync.NewCond(mux),
 		mux:  mux,
 	}
+
+	go pl.updateloop()
+	return pl
 }
 
 func (pool *streampool) append(u *upstream, grp int) {
@@ -133,6 +143,21 @@ func (pool *streampool) append(u *upstream, grp int) {
 	u.uuid = atomic.AddUint64(&pool.atomicid, 1)
 	u.grp = grp
 	pool.pool = append(pool.pool, u)
+
+	pool.tcpool = pool.ensureCap(pool.tcpool)
+	pool.udpool = pool.ensureCap(pool.udpool)
+	pool.alived = pool.ensureCap(pool.alived)
+}
+
+func (pool *streampool) ensureCap(pl []*upstream) []*upstream {
+	if cap(pl) < len(pool.pool) {
+		ups := make([]*upstream, cap(pl)+10)
+		for k, v := range pl {
+			ups[k] = v
+		}
+		return ups
+	}
+	return pl
 }
 
 func (pool *streampool) pickupstreams() []*upstream {
@@ -141,65 +166,84 @@ func (pool *streampool) pickupstreams() []*upstream {
 	// pick udp and tcp equally
 	pool.mux.RLock()
 	defer pool.mux.RUnlock()
-	var tcpalived []*upstream
-	var udpalived []*upstream
-	for _, v := range pool.pool {
-		if v.isAlive() {
-			switch v.proto {
-			case tcp:
-				tcpalived = append(tcpalived, v)
-			case udp:
-				udpalived = append(udpalived, v)
-			}
-		}
-	}
-	var alived []*upstream
-	// avoid duplicate
-	udpArraySize := len(udpalived)
-	tcpArraySize := len(tcpalived)
 
-	if udpArraySize > 0 {
-		idx := rand.Intn(udpArraySize)
-		alived = append(alived, udpalived[idx])
-		if tcpArraySize == 0 {
-			return append(alived, udpalived[(idx+1)%udpArraySize])
-		}
-	}
+	// pick one of each
 
-	switch tcpArraySize {
-	case 1:
-		alived = append(alived, tcpalived[0])
-	default:
-		if len(alived) == 0 {
-			idx := rand.Intn(tcpArraySize)
-			return []*upstream{tcpalived[idx], tcpalived[(idx+1)%tcpArraySize]}
+	rn := rand.Intn(pool.alvlen)
+
+	switch {
+	case pool.tcplen > 0 && pool.udplen > 0:
+		// pick one of each
+		return []*upstream{
+			pool.tcpool[rn%pool.tcplen],
+			pool.udpool[rn%pool.udplen],
 		}
-		return append(alived, tcpalived[rand.Intn(tcpArraySize)])
+	case pool.tcplen == 0 || pool.udplen == 0:
+		// pick 1-2 alived
+		return []*upstream{
+			pool.alived[rn],
+			pool.alived[(rn+1)%pool.alvlen],
+		}
 	}
+	logrus.Warnln("no upstream avalible for pick")
 	return nil
-}
 
-// check if there is any alive upstream
-func (pool *streampool) alive() bool {
-	alive := 0
-	for _, v := range pool.pool {
-		if v.isAlive() {
-			alive++
-		}
-	}
-	if alive >= 2 || alive >= len(pool.pool) {
-		return true
-	}
-	return false
 }
 
 func (pool *streampool) waitforalive() {
 	pool.L.Lock()
-	for !pool.alive() {
+	for !pool.alive {
 		pool.Wait()
 	}
-
 	pool.L.Unlock()
+}
+
+func (pool *streampool) updateloop() {
+	for {
+		pool.L.Lock()
+		for !pool.updatealive() {
+			pool.Wait()
+		}
+		pool.L.Unlock()
+		pool.Broadcast()
+		if pool.alive {
+			<-time.After(time.Second)
+		}
+	}
+}
+
+// check if there is any alive upstream
+func (pool *streampool) updatealive() (updated bool) {
+	var tcpidx, udpidx, aliveidx int
+	for _, v := range pool.pool {
+		if v.isAlive() {
+			switch v.proto {
+			case tcp:
+				pool.tcpool[tcpidx] = v
+				tcpidx++
+			case udp:
+				pool.udpool[udpidx] = v
+				udpidx++
+			}
+			pool.alived[aliveidx] = v
+			aliveidx++
+		}
+	}
+	if aliveidx > 0 {
+		if pool.alive != true {
+			updated = true
+			pool.alive = true
+		}
+	} else {
+		if pool.alive != false {
+			updated = true
+			pool.alive = false
+		}
+	}
+	pool.tcplen = tcpidx
+	pool.udplen = udpidx
+	pool.alvlen = aliveidx
+	return
 }
 
 func (pool *streampool) remove(u *upstream) {
