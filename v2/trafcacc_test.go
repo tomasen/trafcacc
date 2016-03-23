@@ -225,6 +225,10 @@ func TestIPERF(t *testing.T) {
 			defer pprof.StopCPUProfile()
 		}
 		cmd1.Wait()
+
+		cmd2 := exec.Command("iperf3", "-c", "127.0.0.1", "-p", "50500", "-R")
+		iperfExec(cmd2)
+		cmd2.Wait()
 		pgid, err := syscall.Getpgid(pid)
 		if err == nil {
 			syscall.Kill(-pgid, 15) // note the minus sign
