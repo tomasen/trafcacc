@@ -1,10 +1,8 @@
 package trafcacc
 
 import (
-	"bytes"
 	"encoding/gob"
 	"errors"
-	"io"
 	"math/rand"
 	"net"
 	"strconv"
@@ -163,7 +161,8 @@ func (d *dialer) readloop(u *upstream) {
 				logrus.WithError(err).Warnln("dialer Read UDP error")
 				break
 			}
-			if err := gob.NewDecoder(bytes.NewReader(udpbuf[:n])).Decode(&p); err != nil && err != io.EOF {
+
+			if err := decodePacket(udpbuf[:n], &p); err != nil {
 				logrus.WithError(err).Warnln("dialer gop decode from udp error")
 				continue
 			}

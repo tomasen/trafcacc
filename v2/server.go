@@ -1,7 +1,6 @@
 package trafcacc
 
 import (
-	"bytes"
 	"encoding/gob"
 	"net"
 	"strconv"
@@ -166,7 +165,7 @@ func (s *serv) udphandler(conn *net.UDPConn) {
 		}
 
 		p := packet{}
-		if err := gob.NewDecoder(bytes.NewReader(udpbuf[:n])).Decode(&p); err != nil {
+		if err := decodePacket(udpbuf[:n], &p); err != nil {
 			logrus.WithError(err).Warnln("server gop decode from udp error", n)
 			continue
 		}

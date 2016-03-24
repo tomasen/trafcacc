@@ -1,7 +1,6 @@
 package trafcacc
 
 import (
-	"bytes"
 	"encoding/gob"
 	"errors"
 	"math/rand"
@@ -55,19 +54,23 @@ func (u *upstream) sendpacket(p *packet) error {
 		}
 		return err
 	case udp:
-		var buf bytes.Buffer
-		if err := gob.NewEncoder(&buf).Encode(p); err != nil {
+		//var buf bytes.Buffer
+		//if err := gob.NewEncoder(&buf).Encode(p); err != nil {
+		udpbuf := udpBufferPool.Get().([]byte)
+		defer udpBufferPool.Put(udpbuf)
+
+		n := p.encode(udpbuf)
+		if n < 0 {
 			logrus.WithFields(logrus.Fields{
-				"error": err,
 				"cmd":   p.Cmd,
 				"proto": u.proto,
 			}).Warnln("send upstream cmd error")
 		}
 		var err error
 		if u.udpaddr != nil { // server
-			_, err = u.udpconn.WriteToUDP(buf.Bytes(), u.udpaddr)
+			_, err = u.udpconn.WriteToUDP(udpbuf[:n], u.udpaddr)
 		} else if u.conn != nil { // dialer
-			_, err = u.conn.Write(buf.Bytes())
+			_, err = u.conn.Write(udpbuf[:n])
 		} else {
 			logrus.WithFields(logrus.Fields{
 				"upstream": u,

@@ -2,6 +2,7 @@ package trafcacc
 
 import (
 	"encoding/binary"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -44,8 +45,13 @@ func (p *packet) copy() *packet {
 	}
 }
 
-func (p *packet) encode(b []byte) int {
-	n := binary.PutUvarint(b, uint64(p.Senderid))
+func (p *packet) encode(b []byte) (n int) {
+	defer func() {
+		if r := recover(); r != nil {
+			n = -1
+		}
+	}()
+	n = binary.PutUvarint(b, uint64(p.Senderid))
 	n += binary.PutUvarint(b[n:], uint64(p.Connid))
 	n += binary.PutUvarint(b[n:], uint64(p.Seqid))
 	n += binary.PutUvarint(b[n:], uint64(p.Cmd))
@@ -57,8 +63,13 @@ func (p *packet) encode(b []byte) int {
 	return n
 }
 
-func decodePacket(b []byte) *packet {
-	p := &packet{}
+func decodePacket(b []byte, p *packet) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.New("packet decode panic")
+		}
+	}()
+
 	i, n := binary.Uvarint(b)
 	p.Senderid = uint32(i)
 	i, m := binary.Uvarint(b[n:])
@@ -79,7 +90,7 @@ func decodePacket(b []byte) *packet {
 		p.Buf = b[n : n+int(i)]
 	}
 
-	return p
+	return
 }
 
 type queue struct {

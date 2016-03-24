@@ -14,9 +14,9 @@ func TestPacket(t *testing.T) {
 	if n != 7 {
 		t.Fail()
 	}
-
-	p1 := decodePacket(udpbuf[:n])
-	if !reflect.DeepEqual(p1, p0) {
+	p1 := &packet{}
+	err := decodePacket(udpbuf[:n], p1)
+	if err != nil || !reflect.DeepEqual(p1, p0) {
 		t.Fail()
 	}
 }
