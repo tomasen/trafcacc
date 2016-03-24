@@ -106,6 +106,7 @@ type streampool struct {
 	pool     []*upstream
 	atomicid uint64
 	alive    bool
+	wg       sync.WaitGroup
 
 	// for pick up streams
 	tcpool                 []*upstream
@@ -177,7 +178,7 @@ func (pool *streampool) pickupstreams() []*upstream {
 		return []*upstream{
 			pool.udpool[rn%pool.udplen],
 			pool.tcpool[rn%pool.tcplen],
-			pool.udpool[(rn+1)%pool.udplen],
+			//pool.udpool[(rn+1)%pool.udplen],
 		}
 	case pool.tcplen == 0 || pool.udplen == 0:
 		// pick 1-2 alived
@@ -261,7 +262,8 @@ func (pool *streampool) remove(u *upstream) {
 func (pool *streampool) write(p *packet) error {
 	var successed uint32
 
-	var wg sync.WaitGroup
+	wg := waitGroupPool.Get().(*sync.WaitGroup)
+	defer waitGroupPool.Put(wg)
 	// pick upstream tunnel and send packet
 	for _, u := range pool.pickupstreams() {
 		wg.Add(1)
@@ -278,7 +280,7 @@ func (pool *streampool) write(p *packet) error {
 		}(u)
 	}
 	wg.Wait()
-	if successed != 0 {
+	if atomic.LoadUint32(&successed) != 0 {
 		return nil
 	}
 

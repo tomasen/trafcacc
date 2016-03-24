@@ -2,8 +2,10 @@ package trafcacc
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -64,45 +66,11 @@ func (c *packetconn) Read(b []byte) (n int, err error) {
 // Write can be made to time out and return a Error with Timeout() == true
 // after a fixed time limit; see SetDeadline and SetWriteDeadline.
 func (c *packetconn) Write(b []byte) (n int, err error) {
-	if c.werr.Load() != nil {
-		return 0, c.werr.Load().(error)
-	}
-
 	// You can not send messages (datagrams) larger than 2^16 65536 octets with UDP.
-	for n := 0; n < len(b); n += mtu {
-		sz := len(b) - n
-		if sz > mtu {
-			sz = mtu
-		}
-		buf := udpBufferPool.Get().([]byte)
-		copy(buf, b[n:n+sz])
-		go func(seqid uint32) {
-			defer udpBufferPool.Put(buf)
 
-			e0 := c.write(&packet{
-				Senderid: c.senderid,
-				Seqid:    seqid,
-				Connid:   c.connid,
-				Buf:      buf[:sz],
-			})
-			if e0 != nil {
-				c.werr.Store(e0)
-				logrus.WithFields(logrus.Fields{
-					"error": err,
-				}).Warnln("conn write error")
-			}
-		}(atomic.AddUint32(&c.seqid, 1))
-	}
-
-	return len(b), err
-}
-
-/*
-func (c *packetconn) Write(b []byte) (n int, err error) {
-	// You can not send messages (datagrams) larger than 2^16 65536 octets with UDP.
-	var wg sync.WaitGroup
 	sent := int64(len(b))
-
+	wg := waitGroupPool.Get().(*sync.WaitGroup)
+	defer waitGroupPool.Put(wg)
 	for n := 0; n < len(b); n += mtu {
 		sz := len(b) - n
 		if sz > mtu {
@@ -128,7 +96,7 @@ func (c *packetconn) Write(b []byte) (n int, err error) {
 		return int(sent), errors.New("trafcacc write error")
 	}
 	return len(b), err
-}*/
+}
 
 // Close closes the connection.
 // Any blocked Read or Write operations will be unblocked and return errors.
@@ -195,4 +163,39 @@ func (c *packetconn) SetReadDeadline(t time.Time) error {
 func (c *packetconn) SetWriteDeadline(t time.Time) error {
 	// TODO:
 	return nil
+}
+
+// asyncwrite just not working maybe use chan?
+func (c *packetconn) asyncwrite(b []byte) (n int, err error) {
+	if c.werr.Load() != nil {
+		return 0, c.werr.Load().(error)
+	}
+
+	// You can not send messages (datagrams) larger than 2^16 65536 octets with UDP.
+	for n := 0; n < len(b); n += mtu {
+		sz := len(b) - n
+		if sz > mtu {
+			sz = mtu
+		}
+		buf := udpBufferPool.Get().([]byte)
+		copy(buf, b[n:n+sz])
+		go func(seqid uint32, buf []byte) {
+			defer udpBufferPool.Put(buf)
+
+			e0 := c.write(&packet{
+				Senderid: c.senderid,
+				Seqid:    seqid,
+				Connid:   c.connid,
+				Buf:      buf,
+			})
+			if e0 != nil {
+				c.werr.Store(e0)
+				logrus.WithFields(logrus.Fields{
+					"error": err,
+				}).Warnln("conn write error")
+			}
+		}(atomic.AddUint32(&c.seqid, 1), buf)
+	}
+
+	return len(b), err
 }
