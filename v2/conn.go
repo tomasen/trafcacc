@@ -2,14 +2,10 @@ package trafcacc
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"net"
-	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/Sirupsen/logrus"
 )
 
 // packet conn
@@ -31,8 +27,6 @@ type packetconn struct {
 
 	// Write
 	werr atomic.Value
-	pr   *io.PipeReader
-	pw   *io.PipeWriter
 }
 
 func newConn(c pconn, senderid, connid uint32) *packetconn {
@@ -85,41 +79,33 @@ func (c *packetconn) Read(b []byte) (n int, err error) {
 // after a fixed time limit; see SetDeadline and SetWriteDeadline.
 func (c *packetconn) Write(b []byte) (n int, err error) {
 	// You can not send messages (datagrams) larger than 2^16 65536 octets with UDP.
-	if c.pw != nil {
-		if c.werr.Load() != nil {
-			return 0, c.werr.Load().(error)
-		}
-		return c.pw.Write(b)
+	if c.werr.Load() != nil {
+		return 0, c.werr.Load().(error)
 	}
 
-	sent := int64(len(b))
-	wg := waitGroupPool.Get().(*sync.WaitGroup)
-	defer waitGroupPool.Put(wg)
-	for n := 0; n < len(b); n += mtu {
-		sz := len(b) - n
+	n = len(b)
+	for m := 0; m < n; m += mtu {
+		sz := n - m
 		if sz > mtu {
 			sz = mtu
 		}
-		wg.Add(1)
-		go func(b0, b1 int, seqid uint32) {
-			defer wg.Done()
-			e0 := c.write(&packet{
-				Senderid: c.senderid,
-				Seqid:    seqid,
-				Connid:   c.connid,
-				Buf:      b[b0:b1],
-			})
+		buf := make([]byte, sz)
+		copy(buf, b[m:m+sz])
+		p := &packet{
+			Senderid: c.senderid,
+			Seqid:    atomic.AddUint32(&c.seqid, 1),
+			Connid:   c.connid,
+			Buf:      buf,
+		}
+		func() {
+			e0 := c.write(p)
 			if e0 != nil {
-				//return n, err
-				atomic.StoreInt64(&sent, int64(b0))
+				c.werr.Store(e0)
 			}
-		}(n, n+sz, atomic.AddUint32(&c.seqid, 1))
+		}()
 	}
-	wg.Wait()
-	if sent != int64(len(b)) {
-		return int(sent), errors.New("trafcacc write error")
-	}
-	return len(b), err
+
+	return n, nil
 }
 
 // Close closes the connection.
@@ -189,6 +175,7 @@ func (c *packetconn) SetWriteDeadline(t time.Time) error {
 	return nil
 }
 
+/*
 func (c *packetconn) writeloop() {
 	buf := udpBufferPool.Get().([]byte)
 	defer udpBufferPool.Put(buf)
@@ -253,3 +240,4 @@ func (c *packetconn) asyncwrite(b []byte) (n int, err error) {
 
 	return len(b), err
 }
+*/

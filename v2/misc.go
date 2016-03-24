@@ -14,7 +14,6 @@ import (
 
 var (
 	udpBufferPool = &sync.Pool{New: func() interface{} { return make([]byte, buffersize) }}
-	waitGroupPool = &sync.Pool{New: func() interface{} { return new(sync.WaitGroup) }}
 )
 
 func (t *trafcacc) Status() {

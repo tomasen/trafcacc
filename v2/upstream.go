@@ -116,6 +116,9 @@ type streampool struct {
 	udpool                 []*upstream
 	alived                 []*upstream
 	tcplen, udplen, alvlen int
+
+	// write
+	werr atomic.Value
 }
 
 func newStreamPool() *streampool {
@@ -263,34 +266,27 @@ func (pool *streampool) remove(u *upstream) {
 }
 
 func (pool *streampool) write(p *packet) error {
-	var successed uint32
 
-	wg := waitGroupPool.Get().(*sync.WaitGroup)
-	defer waitGroupPool.Put(wg)
+	if pool.werr.Load() != nil {
+		logrus.WithFields(logrus.Fields{
+			"error": "no successed write",
+		}).Warnln("encode packet to upstream error")
+		return pool.werr.Load().(error)
+	}
+
 	// pick upstream tunnel and send packet
 	for _, u := range pool.pickupstreams() {
-		wg.Add(1)
 		go func(up *upstream) {
-			defer wg.Done()
+
 			err := up.sendpacket(p)
 			if err != nil {
 				logrus.WithFields(logrus.Fields{
 					"error": err,
 				}).Warnln("Dialer encode packet to upstream errror")
-			} else {
-				atomic.StoreUint32(&successed, 1)
+				pool.werr.Store(err)
 			}
 		}(u)
 	}
-	wg.Wait()
-	if atomic.LoadUint32(&successed) != 0 {
-		return nil
-	}
 
-	logrus.WithFields(logrus.Fields{
-		"error": "no successed write",
-	}).Warnln("encode packet to upstream error")
-
-	// return error if all failed
-	return errors.New("encoder error")
+	return nil
 }
