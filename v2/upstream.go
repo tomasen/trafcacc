@@ -54,10 +54,8 @@ func (u *upstream) sendpacket(p *packet) error {
 		}
 		return err
 	case udp:
-		//var buf bytes.Buffer
-		//if err := gob.NewEncoder(&buf).Encode(p); err != nil {
-		udpbuf := udpBufferPool.Get().([]byte)
-		defer udpBufferPool.Put(udpbuf)
+
+		udpbuf := make([]byte, buffersize)
 
 		n := p.encode(udpbuf)
 		if n < 0 {

@@ -26,7 +26,8 @@ type packetconn struct {
 	rdr bytes.Buffer
 
 	// Write
-	werr atomic.Value
+	werr  atomic.Value
+	pchan chan *packet
 }
 
 func newConn(c pconn, senderid, connid uint32) *packetconn {
@@ -34,10 +35,11 @@ func newConn(c pconn, senderid, connid uint32) *packetconn {
 		pconn:    c,
 		senderid: senderid,
 		connid:   connid,
+		pchan:    make(chan *packet, 1000),
 	}
 
-	// conn.pr, conn.pw = io.Pipe()
-	// go conn.writeloop()
+	go conn.writeloop()
+
 	return conn
 }
 
@@ -77,35 +79,47 @@ func (c *packetconn) Read(b []byte) (n int, err error) {
 // Write writes data to the connection.
 // Write can be made to time out and return a Error with Timeout() == true
 // after a fixed time limit; see SetDeadline and SetWriteDeadline.
-func (c *packetconn) Write(b []byte) (n int, err error) {
+func (c *packetconn) Write(b0 []byte) (n int, err error) {
 	// You can not send messages (datagrams) larger than 2^16 65536 octets with UDP.
 	if c.werr.Load() != nil {
 		return 0, c.werr.Load().(error)
 	}
 
-	n = len(b)
+	n = len(b0)
+	b := make([]byte, n)
+	copy(b, b0)
+
 	for m := 0; m < n; m += mtu {
 		sz := n - m
 		if sz > mtu {
 			sz = mtu
 		}
-		buf := make([]byte, sz)
-		copy(buf, b[m:m+sz])
 		p := &packet{
 			Senderid: c.senderid,
 			Seqid:    atomic.AddUint32(&c.seqid, 1),
 			Connid:   c.connid,
-			Buf:      buf,
+			Buf:      b[m : m+sz],
 		}
-		go func() {
-			e0 := c.write(p)
-			if e0 != nil {
-				c.werr.Store(e0)
-			}
-		}()
+
+		c.pchan <- p
 	}
 
 	return n, nil
+}
+
+func (c *packetconn) writeloop() {
+	for {
+		p := <-c.pchan
+		if p == nil {
+			// closed
+			break
+		}
+		e0 := c.write(p)
+		if e0 != nil {
+			c.werr.Store(e0)
+			break
+		}
+	}
 }
 
 // Close closes the connection.
@@ -126,6 +140,9 @@ func (c *packetconn) Close() error {
 	// TODO: unblock read and write and return errors
 
 	c.pq().close(c.senderid, c.connid)
+
+	c.pchan <- nil
+
 	return err
 }
 
@@ -174,70 +191,3 @@ func (c *packetconn) SetWriteDeadline(t time.Time) error {
 	// TODO:
 	return nil
 }
-
-/*
-func (c *packetconn) writeloop() {
-	buf := udpBufferPool.Get().([]byte)
-	defer udpBufferPool.Put(buf)
-	for {
-		n, err := c.pr.Read(buf[:mtu])
-		if err != nil {
-			c.werr.Store(err)
-			logrus.WithFields(logrus.Fields{
-				"error": err,
-			}).Warnln("conn read from pipe error")
-			return
-		}
-		func(seqid uint32, b []byte) {
-
-			e0 := c.write(&packet{
-				Senderid: c.senderid,
-				Seqid:    seqid,
-				Connid:   c.connid,
-				Buf:      b,
-			})
-			if e0 != nil {
-				c.werr.Store(e0)
-				logrus.WithFields(logrus.Fields{
-					"error": err,
-				}).Warnln("conn write error")
-			}
-		}(atomic.AddUint32(&c.seqid, 1), buf[:n])
-	}
-}
-
-// asyncwrite just not working maybe use chan?
-func (c *packetconn) asyncwrite(b []byte) (n int, err error) {
-	if c.werr.Load() != nil {
-		return 0, c.werr.Load().(error)
-	}
-
-	// You can not send messages (datagrams) larger than 2^16 65536 octets with UDP.
-	for n := 0; n < len(b); n += mtu {
-		sz := len(b) - n
-		if sz > mtu {
-			sz = mtu
-		}
-		buf := udpBufferPool.Get().([]byte)
-		copy(buf, b[n:n+sz])
-		go func(seqid uint32, buf []byte) {
-			defer udpBufferPool.Put(buf)
-
-			e0 := c.write(&packet{
-				Senderid: c.senderid,
-				Seqid:    seqid,
-				Connid:   c.connid,
-				Buf:      buf,
-			})
-			if e0 != nil {
-				c.werr.Store(e0)
-				logrus.WithFields(logrus.Fields{
-					"error": err,
-				}).Warnln("conn write error")
-			}
-		}(atomic.AddUint32(&c.seqid, 1), buf)
-	}
-
-	return len(b), err
-}
-*/
