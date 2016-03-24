@@ -251,11 +251,9 @@ func (s *serv) push(p *packet) {
 			Cmd:      connected,
 		})
 
-		s.handler.Serve(&packetconn{
-			pconn:    s.ServeMux,
-			senderid: p.Senderid,
-			connid:   p.Connid,
-		})
+		conn := newConn(s.ServeMux, p.Senderid, p.Connid)
+
+		s.handler.Serve(conn)
 	}
 
 	switch p.Cmd {

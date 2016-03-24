@@ -77,11 +77,7 @@ func (d *dialer) DialTimeout(timeout time.Duration) (net.Conn, error) {
 		}
 	}
 
-	conn := &packetconn{
-		pconn:    d,
-		senderid: d.identity,
-		connid:   atomic.AddUint32(&d.atomicid, 1),
-	}
+	conn := newConn(d, d.identity, atomic.AddUint32(&d.atomicid, 1))
 
 	d.pqd.create(conn.senderid, conn.connid)
 

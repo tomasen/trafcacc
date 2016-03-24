@@ -147,7 +147,7 @@ func (pq *packetQueue) add(p *packet) {
 			"q":      q,
 			"key":    key,
 			"pq":     pq,
-		}).Fatalln("packetQueue havn't been created")
+		}).Warnln("packetQueue havn't been created, dropping")
 	}
 }
 

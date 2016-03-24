@@ -25,8 +25,26 @@ type packetconn struct {
 	senderid uint32
 	connid   uint32
 	seqid    uint32
-	rdr      bytes.Buffer
-	werr     atomic.Value
+
+	// Read
+	rdr bytes.Buffer
+
+	// Write
+	werr atomic.Value
+	pr   *io.PipeReader
+	pw   *io.PipeWriter
+}
+
+func newConn(c pconn, senderid, connid uint32) *packetconn {
+	conn := &packetconn{
+		pconn:    c,
+		senderid: senderid,
+		connid:   connid,
+	}
+
+	conn.pr, conn.pw = io.Pipe()
+	go conn.writeloop()
+	return conn
 }
 
 // Read reads data from the connection.
@@ -67,6 +85,13 @@ func (c *packetconn) Read(b []byte) (n int, err error) {
 // after a fixed time limit; see SetDeadline and SetWriteDeadline.
 func (c *packetconn) Write(b []byte) (n int, err error) {
 	// You can not send messages (datagrams) larger than 2^16 65536 octets with UDP.
+	if c.pw != nil {
+		if c.werr.Load() != nil {
+			return 0, c.werr.Load().(error)
+		}
+
+		return c.pw.Write(b)
+	}
 
 	sent := int64(len(b))
 	wg := waitGroupPool.Get().(*sync.WaitGroup)
@@ -163,6 +188,36 @@ func (c *packetconn) SetReadDeadline(t time.Time) error {
 func (c *packetconn) SetWriteDeadline(t time.Time) error {
 	// TODO:
 	return nil
+}
+
+func (c *packetconn) writeloop() {
+	buf := udpBufferPool.Get().([]byte)
+	defer udpBufferPool.Put(buf)
+	for {
+		n, err := c.pr.Read(buf[:mtu])
+		if err != nil {
+			c.werr.Store(err)
+			logrus.WithFields(logrus.Fields{
+				"error": err,
+			}).Warnln("conn read from pipe error")
+			return
+		}
+		func(seqid uint32, b []byte) {
+
+			e0 := c.write(&packet{
+				Senderid: c.senderid,
+				Seqid:    seqid,
+				Connid:   c.connid,
+				Buf:      b,
+			})
+			if e0 != nil {
+				c.werr.Store(e0)
+				logrus.WithFields(logrus.Fields{
+					"error": err,
+				}).Warnln("conn write error")
+			}
+		}(atomic.AddUint32(&c.seqid, 1), buf[:n])
+	}
 }
 
 // asyncwrite just not working maybe use chan?
