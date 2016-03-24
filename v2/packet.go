@@ -70,27 +70,43 @@ func decodePacket(b []byte, p *packet) (err error) {
 		}
 	}()
 
+	err = errors.New("packet decode panic")
 	i, n := binary.Uvarint(b)
+	if n <= 0 {
+		return
+	}
 	p.Senderid = uint32(i)
 	i, m := binary.Uvarint(b[n:])
+	if m <= 0 {
+		return
+	}
 	n += m
 	p.Connid = uint32(i)
 
 	i, m = binary.Uvarint(b[n:])
+	if m <= 0 {
+		return
+	}
 	n += m
 	p.Seqid = uint32(i)
 
 	i, m = binary.Uvarint(b[n:])
+	if m <= 0 {
+		return
+	}
 	n += m
 	p.Cmd = cmd(i)
 
 	i, m = binary.Uvarint(b[n:])
+	if m <= 0 {
+		return
+	}
 	if i > 0 {
 		n += m
 		p.Buf = b[n : n+int(i)]
 	}
 
-	return
+	return nil
 }
 
 type queue struct {
