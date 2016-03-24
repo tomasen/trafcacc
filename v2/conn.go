@@ -97,7 +97,7 @@ func (c *packetconn) Write(b []byte) (n int, err error) {
 			Connid:   c.connid,
 			Buf:      buf,
 		}
-		func() {
+		go func() {
 			e0 := c.write(p)
 			if e0 != nil {
 				c.werr.Store(e0)
