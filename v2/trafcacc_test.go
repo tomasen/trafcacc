@@ -197,7 +197,7 @@ func TestIPERF(t *testing.T) {
 
 	if len(os.Getenv("IPERF")) != 0 {
 		cmd0 := exec.Command("iperf3", "-s", "", "-p", "5203")
-		iperfExec(cmd0)
+		cmd0.Start()
 		pid := cmd0.Process.Pid
 		go cmd0.Wait()
 
@@ -208,7 +208,7 @@ func TestIPERF(t *testing.T) {
 
 		//iperfExec(exec.Command("iperf3", "-c", "127.0.0.1", "-p", "50500", "-R", "-P", "3"))
 		//iperfExec(exec.Command("iperf3", "-c", "127.0.0.1", "-p", "50500", "-b", "10M"))
-		cmd1 := exec.Command("iperf3", "-c", "127.0.0.1", "-p", "50500")
+		cmd1 := exec.Command("iperf3", "-c", "127.0.0.1", "-p", "50500", "--get-server-output")
 		iperfExec(cmd1)
 		if len(os.Getenv("CPU")) != 0 {
 			f, err := os.Create("cpu.profile")
@@ -220,7 +220,7 @@ func TestIPERF(t *testing.T) {
 		}
 		cmd1.Wait()
 
-		cmd2 := exec.Command("iperf3", "-c", "127.0.0.1", "-p", "50500", "-R")
+		cmd2 := exec.Command("iperf3", "-c", "127.0.0.1", "-p", "50500", "-R", "--get-server-output")
 		iperfExec(cmd2)
 		cmd2.Wait()
 
@@ -235,7 +235,6 @@ func TestIPERF(t *testing.T) {
 }
 
 func iperfExec(cmd *exec.Cmd) {
-	logrus.Debugln(cmd)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err := cmd.Start()

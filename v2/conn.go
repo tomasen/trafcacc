@@ -42,8 +42,8 @@ func newConn(c pconn, senderid, connid uint32) *packetconn {
 		connid:   connid,
 	}
 
-	conn.pr, conn.pw = io.Pipe()
-	go conn.writeloop()
+	// conn.pr, conn.pw = io.Pipe()
+	// go conn.writeloop()
 	return conn
 }
 
@@ -89,7 +89,6 @@ func (c *packetconn) Write(b []byte) (n int, err error) {
 		if c.werr.Load() != nil {
 			return 0, c.werr.Load().(error)
 		}
-
 		return c.pw.Write(b)
 	}
 

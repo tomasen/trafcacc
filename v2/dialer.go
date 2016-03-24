@@ -143,6 +143,7 @@ func (d *dialer) connect(u *upstream) {
 }
 
 func (d *dialer) readloop(u *upstream) {
+	ch := time.Tick(time.Second)
 	for {
 		p := packet{}
 		if u.proto == tcp {
@@ -173,14 +174,13 @@ func (d *dialer) readloop(u *upstream) {
 			atomic.StoreInt64(&u.alive, time.Now().UnixNano())
 			d.pool.Broadcast()
 
-			go func() {
-				<-time.After(time.Second)
-				err := u.send(ping)
-				if err != nil {
-					// TODO: close connection?
-				}
-			}()
 			continue
+		}
+
+		select {
+		case <-ch:
+			u.send(ping)
+		default:
 		}
 		go d.push(&p)
 	}
