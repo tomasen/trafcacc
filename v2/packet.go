@@ -1,6 +1,7 @@
 package trafcacc
 
 import (
+	"encoding/binary"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -41,6 +42,44 @@ func (p *packet) copy() *packet {
 		Cmd:      p.Cmd,
 		Buf:      buf,
 	}
+}
+
+func (p *packet) encode(b []byte) int {
+	n := binary.PutUvarint(b, uint64(p.Senderid))
+	n += binary.PutUvarint(b[n:], uint64(p.Connid))
+	n += binary.PutUvarint(b[n:], uint64(p.Seqid))
+	n += binary.PutUvarint(b[n:], uint64(p.Cmd))
+	n += binary.PutUvarint(b[n:], uint64(len(p.Buf)))
+	if len(p.Buf) > 0 {
+		n += copy(b[n:], p.Buf)
+		//b = append(b[:n], p.Buf...)
+	}
+	return n
+}
+
+func decodePacket(b []byte) *packet {
+	p := &packet{}
+	i, n := binary.Uvarint(b)
+	p.Senderid = uint32(i)
+	i, m := binary.Uvarint(b[n:])
+	n += m
+	p.Connid = uint32(i)
+
+	i, m = binary.Uvarint(b[n:])
+	n += m
+	p.Seqid = uint32(i)
+
+	i, m = binary.Uvarint(b[n:])
+	n += m
+	p.Cmd = cmd(i)
+
+	i, m = binary.Uvarint(b[n:])
+	if i > 0 {
+		n += m
+		p.Buf = b[n : n+int(i)]
+	}
+
+	return p
 }
 
 type queue struct {
