@@ -51,13 +51,11 @@ func (t *trafcacc) Serve(conn net.Conn) {
 		}).Errorln("backend dial error")
 		return
 	}
-	defer conn.Close()
 
-	ch := make(chan struct{}, 2)
-	go pipe(conn, uc, ch)
-	go pipe(uc, conn, ch)
-	<-ch
-	<-ch
+	var wg sync.WaitGroup
+	go pipe(conn, uc, wg)
+	go pipe(uc, conn, wg)
+	wg.Wait()
 }
 
 // Accelerate traffic by listen to l, and connect to u
@@ -111,13 +109,11 @@ func (t *trafcacc) accelerate(l, u string) {
 							"error": err,
 						}).Fatalln("frontend dial to address error")
 					}
-					defer up.Close()
 
-					ch := make(chan struct{}, 2)
-					go pipe(up, conn, ch)
-					pipe(conn, up, ch)
-					<-ch
-					<-ch
+					var wg sync.WaitGroup
+					go pipe(conn, up, wg)
+					go pipe(up, conn, wg)
+					wg.Wait()
 				})
 				break
 			}
@@ -152,13 +148,13 @@ func (t *trafcacc) roleString() string {
 }
 
 // pipe upstream and downstream
-func pipe(dst net.Conn, src net.Conn, ch chan struct{}) {
+func pipe(dst net.Conn, src net.Conn, wg sync.WaitGroup) {
 	defer func() {
 		dst.Close()
 		src.Close()
-		ch <- struct{}{}
+		wg.Done()
 	}()
-
+	wg.Add(1)
 	_, err := io.Copy(dst, src)
 	if err != nil {
 		logrus.Warnln("pipe copy error", err)

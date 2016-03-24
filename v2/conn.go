@@ -35,7 +35,7 @@ func newConn(c pconn, senderid, connid uint32) *packetconn {
 		pconn:    c,
 		senderid: senderid,
 		connid:   connid,
-		pchan:    make(chan *packet, 1000),
+		pchan:    make(chan *packet, 5000),
 	}
 
 	go conn.writeloop()
