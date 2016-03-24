@@ -153,8 +153,7 @@ func (s *serv) udphandler(conn *net.UDPConn) {
 	}()
 
 	for {
-		udpbuf := udpBufferPool.Get().([]byte)
-		defer udpBufferPool.Put(udpbuf)
+		udpbuf := make([]byte, buffersize)
 		n, addr, err := conn.ReadFromUDP(udpbuf)
 		if err != nil {
 			logrus.WithError(err).Warnln("ReadFromUDP error")

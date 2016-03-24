@@ -43,6 +43,7 @@ func (p *packet) copy() *packet {
 		Seqid:    p.Seqid,
 		Cmd:      p.Cmd,
 		Buf:      buf,
+		udp:      p.udp,
 	}
 }
 

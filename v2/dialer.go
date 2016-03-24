@@ -157,8 +157,7 @@ func (d *dialer) readloop(u *upstream) {
 			}
 			atomic.AddUint64(&u.recv, uint64(len(p.Buf)))
 		} else { //  if u.proto == udp
-			udpbuf := udpBufferPool.Get().([]byte)
-			defer udpBufferPool.Put(udpbuf)
+			udpbuf := make([]byte, buffersize)
 			n, err := u.conn.Read(udpbuf)
 			if err != nil {
 				logrus.WithError(err).Warnln("dialer Read UDP error")
