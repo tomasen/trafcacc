@@ -70,7 +70,7 @@ func TestDialUDP(t *testing.T) {
 }
 
 func testDial(f, s string, t *testing.T) {
-	srv := NewServeMux()
+	srv := NewServe()
 	srv.HandleFunc(s, testDialServe0)
 
 	d := NewDialer()

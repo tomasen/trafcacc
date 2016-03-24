@@ -23,11 +23,6 @@ type dialer struct {
 	udpbuf []byte
 }
 
-// NewDialer TODO: comment
-func NewDialer() Dialer {
-	return newDialer()
-}
-
 func newDialer() *dialer {
 	return &dialer{
 		pool:     newStreamPool(),

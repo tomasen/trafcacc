@@ -11,19 +11,13 @@ import (
 	"github.com/Sirupsen/logrus"
 )
 
-// ServeMux TODO: comment
-type ServeMux struct {
+type serve struct {
 	*sync.Cond
 	alive bool
 	// contains filtered or unexported fields
 	handler Handler
 	pool    *streampool
 	pqs     *packetQueue
-}
-
-// Handler TODO: comment
-type Handler interface {
-	Serve(net.Conn)
 }
 
 // HandlerFunc TODO: comment
@@ -34,9 +28,13 @@ func (f handlerFunc) Serve(c net.Conn) {
 	f(c)
 }
 
-// NewServeMux allocates and returns a new ServeMux.
-func NewServeMux() *ServeMux {
-	return &ServeMux{
+// NewServe allocates and returns a new ServeMux.
+func NewServe() Serve {
+	return newServe()
+}
+
+func newServe() *serve {
+	return &serve{
 		Cond: sync.NewCond(&sync.Mutex{}),
 		pqs:  newPacketQueue(),
 		pool: newStreamPool(),
@@ -45,17 +43,17 @@ func NewServeMux() *ServeMux {
 
 // HandleFunc registers the handler for the given addresses
 // that back-end server listened to
-func (mux *ServeMux) HandleFunc(listento string, handler func(net.Conn)) {
+func (mux *serve) HandleFunc(listento string, handler func(net.Conn)) {
 	mux.Handle(listento, handlerFunc(handler))
 }
 
 // Handle registers the handler for the given addresses
-func (mux *ServeMux) Handle(listento string, handler Handler) {
+func (mux *serve) Handle(listento string, handler Handler) {
 	// TODO: handle as backend
 	mux.handler = handler
 	for _, e := range parse(listento) {
 		for p := e.portBegin; p <= e.portEnd; p++ {
-			s := serv{ServeMux: mux, proto: e.proto, addr: net.JoinHostPort(e.host, strconv.Itoa(p))}
+			s := serv{serve: mux, proto: e.proto, addr: net.JoinHostPort(e.host, strconv.Itoa(p))}
 			s.listen()
 			go func() {
 				s.waitforalive()
@@ -68,7 +66,7 @@ func (mux *ServeMux) Handle(listento string, handler Handler) {
 	}
 }
 
-func (mux *ServeMux) waitforalive() {
+func (mux *serve) waitforalive() {
 	mux.L.Lock()
 	for !mux.alive {
 		mux.Wait()
@@ -76,16 +74,16 @@ func (mux *ServeMux) waitforalive() {
 	mux.L.Unlock()
 }
 
-func (mux *ServeMux) pq() *packetQueue {
+func (mux *serve) pq() *packetQueue {
 	return mux.pqs
 }
 
-func (mux *ServeMux) role() string {
+func (mux *serve) role() string {
 	return "server"
 }
 
 type serv struct {
-	*ServeMux
+	*serve
 	proto string
 	addr  string
 	alive bool
@@ -236,8 +234,7 @@ func (s *serv) tcphandler(conn net.Conn) {
 	}
 }
 
-func (mux *ServeMux) write(p *packet) error {
-
+func (mux *serve) write(p *packet) error {
 	return mux.pool.write(p)
 }
 
@@ -250,7 +247,7 @@ func (s *serv) push(p *packet) {
 			Cmd:      connected,
 		})
 
-		conn := newConn(s.ServeMux, p.Senderid, p.Connid)
+		conn := newConn(s.serve, p.Senderid, p.Connid)
 
 		s.handler.Serve(conn)
 	}

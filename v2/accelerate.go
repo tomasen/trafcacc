@@ -75,7 +75,7 @@ func (t *trafcacc) accelerate(l, u string) {
 		if t.remote == nil {
 			logrus.Fatalln("didn't specify remote addr for backend")
 		}
-		serve := NewServeMux()
+		serve := newServe()
 		serve.Handle(l, t)
 		t.pool = serve.pool
 		t.pconn = serve

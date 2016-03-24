@@ -27,3 +27,19 @@ type Dialer interface {
 	DialTimeout(timeout time.Duration) (net.Conn, error)
 	streampool() *streampool
 }
+
+// NewDialer TODO: comment
+func NewDialer() Dialer {
+	return newDialer()
+}
+
+// Handler TODO: comment
+type Handler interface {
+	Serve(net.Conn)
+}
+
+// Serve TODO: comment
+type Serve interface {
+	HandleFunc(listento string, handler func(net.Conn))
+	Handle(listento string, handler Handler)
+}
