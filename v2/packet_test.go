@@ -6,7 +6,7 @@ import (
 )
 
 func TestPacket(t *testing.T) {
-	p0 := &packet{1, 2, 3, []byte("12"), close}
+	p0 := &packet{1, 2, 3, []byte("12"), close, false}
 	udpbuf := udpBufferPool.Get().([]byte)
 	defer udpBufferPool.Put(udpbuf)
 

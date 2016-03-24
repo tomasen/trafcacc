@@ -25,7 +25,10 @@ type dialer struct {
 
 // NewDialer TODO: comment
 func NewDialer() Dialer {
+	return newDialer()
+}
 
+func newDialer() *dialer {
 	return &dialer{
 		pool:     newStreamPool(),
 		identity: rand.Uint32(),
@@ -161,12 +164,12 @@ func (d *dialer) readloop(u *upstream) {
 				logrus.WithError(err).Warnln("dialer Read UDP error")
 				break
 			}
-
 			if err := decodePacket(udpbuf[:n], &p); err != nil {
 				logrus.WithError(err).Warnln("dialer gop decode from udp error")
 				continue
 			}
 			atomic.AddUint64(&u.recv, uint64(len(p.Buf)))
+			p.udp = true
 		}
 		if p.Cmd == pong {
 			// set alive only when received pong

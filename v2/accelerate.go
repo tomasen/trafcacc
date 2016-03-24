@@ -34,6 +34,7 @@ type trafcacc struct {
 	role   tag
 	remote *upstream
 	pool   *streampool
+	pconn  pconn
 }
 
 // Trafcacc give a interface to query running status
@@ -77,6 +78,7 @@ func (t *trafcacc) accelerate(l, u string) {
 		serve := NewServeMux()
 		serve.Handle(l, t)
 		t.pool = serve.pool
+		t.pconn = serve
 		go func() {
 			serve.waitforalive()
 			t.setalive()
@@ -85,9 +87,10 @@ func (t *trafcacc) accelerate(l, u string) {
 	case FRONTEND:
 		// TODO: listen to l
 		// use trafcacc.Dialer to init connection to u
-		dialer := NewDialer()
+		dialer := newDialer()
 		dialer.Setup(u)
 		t.pool = dialer.streampool()
+		t.pconn = dialer
 
 		for _, e := range parse(l) {
 			for p := e.portBegin; p <= e.portEnd; p++ {

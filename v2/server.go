@@ -184,6 +184,7 @@ func (s *serv) udphandler(conn *net.UDPConn) {
 			}
 			continue
 		default:
+			p.udp = true
 			go s.push(&p)
 		}
 	}

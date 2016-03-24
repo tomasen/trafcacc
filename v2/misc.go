@@ -31,7 +31,7 @@ func (t *trafcacc) Status() {
 
 	if logrus.GetLevel() >= logrus.DebugLevel {
 		t.pool.mux.RLock()
-		var us, ts, ur, tr string
+		// var us, ts, ur, tr string
 		var su, st, ru, rt uint64
 		for _, v := range t.pool.pool {
 			s := atomic.LoadUint64(&v.sent)
@@ -39,21 +39,24 @@ func (t *trafcacc) Status() {
 			if v.proto == udp {
 				su += s
 				ru += r
-				us += humanbyte(s) + ","
-				ur += humanbyte(r) + ","
+				//us += humanbyte(s) + ","
+				//ur += humanbyte(r) + ","
 			} else {
 				st += s
 				rt += r
-				ts += humanbyte(s) + ","
-				tr += humanbyte(r) + ","
+				//ts += humanbyte(s) + ","
+				//tr += humanbyte(r) + ","
 			}
 		}
 		t.pool.mux.RUnlock()
-		fields["Sent(U)"] = humanbyte(su) + "(" + strings.TrimRight(us, ",") + ")"
-		fields["Recv(U)"] = humanbyte(ru) + "(" + strings.TrimRight(ur, ",") + ")"
+		fields["Sent(U)"] = humanbyte(su) // + "(" + strings.TrimRight(us, ",") + ")"
+		fields["Recv(U)"] = humanbyte(ru) // + "(" + strings.TrimRight(ur, ",") + ")"
 
-		fields["Sent(T)"] = humanbyte(st) + "(" + strings.TrimRight(ts, ",") + ")"
-		fields["Recv(T)"] = humanbyte(rt) + "(" + strings.TrimRight(tr, ",") + ")"
+		fields["Sent(T)"] = humanbyte(st) // + "(" + strings.TrimRight(ts, ",") + ")"
+		fields["Recv(T)"] = humanbyte(rt) // + "(" + strings.TrimRight(tr, ",") + ")"
+
+		fields["POP(T)"] = humanbyte(atomic.LoadUint64(&t.pconn.pq().poptcp))
+		fields["POP(U)"] = humanbyte(atomic.LoadUint64(&t.pconn.pq().popudp))
 	}
 
 	logrus.WithFields(fields).Infoln(t.roleString(), "status")

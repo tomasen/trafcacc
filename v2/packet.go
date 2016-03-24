@@ -28,6 +28,7 @@ type packet struct {
 	Seqid    uint32
 	Buf      []byte
 	Cmd      cmd
+	udp      bool
 }
 
 func (p *packet) copy() *packet {
@@ -70,7 +71,7 @@ func decodePacket(b []byte, p *packet) (err error) {
 		}
 	}()
 
-	err = errors.New("packet decode panic")
+	err = errors.New("packet decode err")
 	i, n := binary.Uvarint(b)
 	if n <= 0 {
 		return
@@ -143,6 +144,8 @@ func (q *queue) arrived() bool {
 type packetQueue struct {
 	queues map[uint64]*queue
 	mux    sync.RWMutex
+	popudp uint64
+	poptcp uint64
 }
 
 func newPacketQueue() *packetQueue {
@@ -270,6 +273,11 @@ func (pq *packetQueue) pop(senderid, connid uint32) *packet {
 			if p.Cmd == close || p.Cmd == closed {
 				pq.close(senderid, connid)
 				return nil
+			}
+			if p.udp {
+				atomic.AddUint64(&pq.popudp, uint64(len(p.Buf)))
+			} else {
+				atomic.AddUint64(&pq.poptcp, uint64(len(p.Buf)))
 			}
 			return p
 		}
