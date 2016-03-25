@@ -194,6 +194,12 @@ func (pq *packetQueue) close(senderid, connid uint32) {
 	}
 }
 
+func (pq *packetQueue) len() int {
+	pq.mux.Lock()
+	defer pq.mux.Unlock()
+	return len(pq.queues)
+}
+
 func (pq *packetQueue) add(p *packet) {
 	key := pq.key(p.Senderid, p.Connid)
 

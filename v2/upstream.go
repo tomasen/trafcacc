@@ -174,19 +174,21 @@ func (pool *streampool) pickupstreams() []*upstream {
 
 	// pick one of each
 
-	rn := int(atomic.AddUint32(&pool.rn, 2) - 2)
-
 	switch {
 	case pool.tcplen > 0 && pool.udplen > 0:
 		// pick one of each
+		rn := int(atomic.AddUint32(&pool.rn, 1) - 1)
+
 		return []*upstream{
 			pool.udpool[rn%pool.udplen],
 			pool.tcpool[rn%pool.tcplen],
-			pool.udpool[(rn+1)%pool.udplen],
-			pool.tcpool[(rn+1)%pool.udplen],
+			// pool.udpool[(rn+1)%pool.udplen],
+			// pool.tcpool[(rn+1)%pool.udplen],
 		}
 	case pool.tcplen == 0 || pool.udplen == 0:
-		// pick 1-2 alived
+		// pick 2 alived
+		rn := int(atomic.AddUint32(&pool.rn, 2) - 2)
+
 		return []*upstream{
 			pool.alived[rn%pool.alvlen],
 			pool.alived[(rn+1)%pool.alvlen],
