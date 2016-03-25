@@ -181,7 +181,7 @@ func (pool *streampool) pickupstreams() []*upstream {
 
 		return []*upstream{
 			pool.udpool[rn%pool.udplen],
-			pool.tcpool[rn%pool.tcplen],
+			pool.tcpool[(rn+pool.tcplen/2)%pool.tcplen],
 			// pool.udpool[(rn+1)%pool.udplen],
 			// pool.tcpool[(rn+1)%pool.udplen],
 		}

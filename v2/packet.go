@@ -126,6 +126,10 @@ func newQueue() *queue {
 	}
 }
 
+func (q *queue) len() int {
+	return len(q.queue)
+}
+
 func (q *queue) isClosed() bool {
 	return atomic.LoadInt64(&q.closed) != 0
 }
@@ -194,10 +198,15 @@ func (pq *packetQueue) close(senderid, connid uint32) {
 	}
 }
 
-func (pq *packetQueue) len() int {
-	pq.mux.Lock()
-	defer pq.mux.Unlock()
-	return len(pq.queues)
+func (pq *packetQueue) len() (n int) {
+	pq.mux.RLock()
+	defer pq.mux.RUnlock()
+	for _, v := range pq.queues {
+		v.L.Lock()
+		n += len(v.queue)
+		v.L.Unlock()
+	}
+	return
 }
 
 func (pq *packetQueue) add(p *packet) {
