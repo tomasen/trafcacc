@@ -3,7 +3,6 @@ package trafcacc
 import (
 	"encoding/gob"
 	"errors"
-	"math/rand"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -117,6 +116,7 @@ type streampool struct {
 
 	// write
 	werr atomic.Value
+	rn   uint32
 }
 
 func newStreamPool() *streampool {
@@ -174,7 +174,7 @@ func (pool *streampool) pickupstreams() []*upstream {
 
 	// pick one of each
 
-	rn := int(rand.Int31())
+	rn := int(atomic.AddUint32(&pool.rn, 2) - 2)
 
 	switch {
 	case pool.tcplen > 0 && pool.udplen > 0:
@@ -182,7 +182,8 @@ func (pool *streampool) pickupstreams() []*upstream {
 		return []*upstream{
 			pool.udpool[rn%pool.udplen],
 			pool.tcpool[rn%pool.tcplen],
-			//pool.udpool[(rn+1)%pool.udplen],
+			pool.udpool[(rn+1)%pool.udplen],
+			pool.tcpool[(rn+1)%pool.udplen],
 		}
 	case pool.tcplen == 0 || pool.udplen == 0:
 		// pick 1-2 alived
