@@ -205,60 +205,6 @@ func (d *dialer) pingloop(u *upstream) {
 	}
 }
 
-func (d *dialer) readloop(u *upstream) {
-	ch := time.Tick(time.Second)
-	for {
-		p := packet{}
-		if u.proto == tcp {
-			err := u.decoder.Decode(&p)
-			if err != nil {
-				logrus.WithFields(logrus.Fields{
-					"error": err,
-				}).Warnln("Dialer docode upstream packet")
-				break
-			}
-		} else { //  if u.proto == udp
-			udpbuf := make([]byte, buffersize)
-			n, err := u.conn.Read(udpbuf)
-			if err != nil {
-				logrus.WithError(err).Warnln("dialer Read UDP error")
-				break
-			}
-			if err := decodePacket(udpbuf[:n], &p); err != nil {
-				logrus.WithError(err).Warnln("dialer gop decode from udp error")
-				continue
-			}
-			p.udp = true
-		}
-		atomic.AddUint64(&u.recv, uint64(len(p.Buf)))
-
-		switch p.Cmd {
-		case pong:
-			// set alive only when received pong
-			atomic.StoreInt64(&u.alive, time.Now().UnixNano())
-			d.pool.Broadcast()
-
-			continue
-		case ack:
-		case rqu:
-		default:
-			go d.push(&p)
-			go d.write(&packet{
-				Senderid: p.Senderid,
-				Connid:   p.Connid,
-				Seqid:    p.Seqid,
-				Cmd:      ack,
-			})
-		}
-
-		select {
-		case <-ch:
-			u.send(ping)
-		default:
-		}
-	}
-}
-
 func (d *dialer) write(p *packet) error {
 	p.Senderid = d.identity
 
