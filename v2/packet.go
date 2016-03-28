@@ -161,12 +161,8 @@ func newPacketQueue() *packetQueue {
 	}
 }
 
-func (pq *packetQueue) key(senderid, connid uint32) uint64 {
-	return uint64(senderid)<<32 | uint64(connid)
-}
-
 func (pq *packetQueue) create(senderid, connid uint32) (isnew bool) {
-	key := pq.key(senderid, connid)
+	key := packetKey(senderid, connid)
 
 	pq.mux.Lock()
 	defer pq.mux.Unlock()
@@ -178,7 +174,7 @@ func (pq *packetQueue) create(senderid, connid uint32) (isnew bool) {
 }
 
 func (pq *packetQueue) close(senderid, connid uint32) {
-	key := pq.key(senderid, connid)
+	key := packetKey(senderid, connid)
 	// TODO: wait queue drained cleanedup?
 	pq.mux.Lock()
 	q, exist := pq.queues[key]
@@ -212,7 +208,7 @@ func (pq *packetQueue) len() (n int) {
 }
 
 func (pq *packetQueue) add(p *packet) {
-	key := pq.key(p.Senderid, p.Connid)
+	key := packetKey(p.Senderid, p.Connid)
 
 	pq.mux.Lock()
 	q, exist := pq.queues[key]
@@ -239,7 +235,7 @@ func (pq *packetQueue) add(p *packet) {
 }
 
 func (pq *packetQueue) waitforArrived(senderid, connid uint32) {
-	key := pq.key(senderid, connid)
+	key := packetKey(senderid, connid)
 
 	pq.mux.Lock()
 	q, exist := pq.queues[key]
@@ -257,7 +253,7 @@ func (pq *packetQueue) waitforArrived(senderid, connid uint32) {
 }
 
 func (pq *packetQueue) isClosed(senderid, connid uint32) bool {
-	key := pq.key(senderid, connid)
+	key := packetKey(senderid, connid)
 
 	pq.mux.Lock()
 	q, exist := pq.queues[key]
@@ -269,7 +265,7 @@ func (pq *packetQueue) isClosed(senderid, connid uint32) bool {
 }
 
 func (pq *packetQueue) pop(senderid, connid uint32) *packet {
-	key := pq.key(senderid, connid)
+	key := packetKey(senderid, connid)
 
 	pq.mux.Lock()
 	q, exist := pq.queues[key]

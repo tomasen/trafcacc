@@ -115,16 +115,18 @@ type streampool struct {
 	tcplen, udplen, alvlen int
 
 	// write
-	werr atomic.Value
-	rn   uint32
+	werr  atomic.Value
+	rn    uint32
+	cache *writeCache
 }
 
 func newStreamPool() *streampool {
 	mux := &sync.RWMutex{}
 	pl := &streampool{
 		// use RWMutex
-		Cond: sync.NewCond(mux),
-		mux:  mux,
+		Cond:  sync.NewCond(mux),
+		mux:   mux,
+		cache: newWriteCache(),
 	}
 
 	go pl.updateloop()
@@ -278,7 +280,6 @@ func (pool *streampool) write(p *packet) error {
 	// pick upstream tunnel and send packet
 	for _, u := range pool.pickupstreams() {
 		go func(up *upstream) {
-
 			err := up.sendpacket(p)
 			if err != nil {
 				logrus.WithFields(logrus.Fields{
@@ -287,6 +288,11 @@ func (pool *streampool) write(p *packet) error {
 				pool.werr.Store(err)
 			}
 		}(u)
+	}
+
+	// put packet in cache
+	if p.Cmd == data {
+		pool.cache.add(p)
 	}
 
 	return nil

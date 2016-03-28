@@ -13,14 +13,13 @@ import (
 )
 
 type dialer struct {
-	pool *streampool
-
 	identity uint32
 	atomicid uint32
 
-	pqd *packetQueue
-
 	udpbuf []byte
+
+	pool *streampool
+	pqd  *packetQueue
 }
 
 func newDialer() *dialer {
@@ -181,7 +180,12 @@ func (d *dialer) proc(u *upstream, p *packet) {
 		atomic.StoreInt64(&u.alive, time.Now().UnixNano())
 		d.pool.Broadcast()
 	case ack:
+		d.pool.cache.ack(p.Senderid, p.Connid, p.Seqid)
 	case rqu:
+		rp := d.pool.cache.get(p.Senderid, p.Connid, p.Seqid)
+		if rp != nil {
+			d.write(rp)
+		}
 	default:
 		go d.push(p)
 		go d.write(&packet{
@@ -206,8 +210,6 @@ func (d *dialer) pingloop(u *upstream) {
 }
 
 func (d *dialer) write(p *packet) error {
-	p.Senderid = d.identity
-
 	// return error if all failed
 	return d.pool.write(p)
 }

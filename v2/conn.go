@@ -10,6 +10,7 @@ import (
 
 // packet conn
 type pconn interface {
+	streampool() *streampool
 	pq() *packetQueue
 	write(*packet) error
 	role() string

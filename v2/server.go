@@ -13,11 +13,11 @@ import (
 
 type serve struct {
 	*sync.Cond
-	alive bool
-	// contains filtered or unexported fields
+	alive   bool
 	handler Handler
-	pool    *streampool
-	pqs     *packetQueue
+
+	pool *streampool
+	pqs  *packetQueue
 }
 
 // HandlerFunc TODO: comment
@@ -72,6 +72,10 @@ func (mux *serve) waitforalive() {
 		mux.Wait()
 	}
 	mux.L.Unlock()
+}
+
+func (mux *serve) streampool() *streampool {
+	return mux.pool
 }
 
 func (mux *serve) pq() *packetQueue {
@@ -226,7 +230,12 @@ func (s *serv) proc(u *upstream, p *packet) error {
 			return err
 		}
 	case ack:
+		s.pool.cache.ack(p.Senderid, p.Connid, p.Seqid)
 	case rqu:
+		rp := s.pool.cache.get(p.Senderid, p.Connid, p.Seqid)
+		if rp != nil {
+			s.write(rp)
+		}
 	default:
 		go s.push(p)
 		go s.write(&packet{

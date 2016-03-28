@@ -58,6 +58,11 @@ func (t *trafcacc) Status() {
 	logrus.WithFields(fields).Infoln(t.roleString(), "status")
 }
 
+// packet key
+func packetKey(senderid, connid uint32) uint64 {
+	return uint64(senderid)<<32 | uint64(connid)
+}
+
 func humanbyte(n uint64) string {
 	return strings.Replace(humanize.Bytes(n), " ", "", 1)
 }
