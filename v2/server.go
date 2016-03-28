@@ -225,8 +225,16 @@ func (s *serv) proc(u *upstream, p *packet) error {
 		if err != nil {
 			return err
 		}
+	case ack:
+	case rqu:
 	default:
 		go s.push(p)
+		go s.write(&packet{
+			Senderid: p.Senderid,
+			Connid:   p.Connid,
+			Seqid:    p.Seqid,
+			Cmd:      ack,
+		})
 	}
 	return nil
 }

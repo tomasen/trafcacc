@@ -123,18 +123,85 @@ func (d *dialer) connect(u *upstream) {
 		}
 
 		// begin to ping
-		err = u.send(ping)
-		if err != nil {
-			u.close()
-			continue
-		}
+		go d.pingloop(u)
 
 		atomic.StoreInt64(&u.alive, time.Now().UnixNano())
 		d.pool.Broadcast()
 
-		d.readloop(u)
+		if u.proto == tcp {
+			d.readtcp(u)
+		} else {
+			d.readudp(u)
+		}
 
 		u.close()
+	}
+}
+
+func (d *dialer) readtcp(u *upstream) {
+	for {
+		p := packet{}
+		err := u.decoder.Decode(&p)
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"error": err,
+			}).Warnln("Dialer docode upstream packet")
+			break
+		}
+
+		d.proc(u, &p)
+	}
+}
+
+func (d *dialer) readudp(u *upstream) {
+	for {
+		p := packet{}
+		udpbuf := make([]byte, buffersize)
+		n, err := u.conn.Read(udpbuf)
+		if err != nil {
+			logrus.WithError(err).Warnln("dialer Read UDP error")
+			break
+		}
+		if err := decodePacket(udpbuf[:n], &p); err != nil {
+			logrus.WithError(err).Warnln("dialer gop decode from udp error")
+			continue
+		}
+		p.udp = true
+
+		d.proc(u, &p)
+	}
+}
+
+func (d *dialer) proc(u *upstream, p *packet) {
+	atomic.AddUint64(&u.recv, uint64(len(p.Buf)))
+
+	switch p.Cmd {
+	case pong:
+		// set alive only when received pong
+		atomic.StoreInt64(&u.alive, time.Now().UnixNano())
+		d.pool.Broadcast()
+	case ack:
+	case rqu:
+	default:
+		go d.push(p)
+		go d.write(&packet{
+			Senderid: p.Senderid,
+			Connid:   p.Connid,
+			Seqid:    p.Seqid,
+			Cmd:      ack,
+		})
+	}
+}
+
+func (d *dialer) pingloop(u *upstream) {
+	ch := time.Tick(time.Second)
+	for {
+		err := u.send(ping)
+		if err != nil {
+			u.close()
+			break
+		}
+		<-ch
 	}
 }
 
@@ -150,7 +217,6 @@ func (d *dialer) readloop(u *upstream) {
 				}).Warnln("Dialer docode upstream packet")
 				break
 			}
-			atomic.AddUint64(&u.recv, uint64(len(p.Buf)))
 		} else { //  if u.proto == udp
 			udpbuf := make([]byte, buffersize)
 			n, err := u.conn.Read(udpbuf)
@@ -162,15 +228,27 @@ func (d *dialer) readloop(u *upstream) {
 				logrus.WithError(err).Warnln("dialer gop decode from udp error")
 				continue
 			}
-			atomic.AddUint64(&u.recv, uint64(len(p.Buf)))
 			p.udp = true
 		}
-		if p.Cmd == pong {
+		atomic.AddUint64(&u.recv, uint64(len(p.Buf)))
+
+		switch p.Cmd {
+		case pong:
 			// set alive only when received pong
 			atomic.StoreInt64(&u.alive, time.Now().UnixNano())
 			d.pool.Broadcast()
 
 			continue
+		case ack:
+		case rqu:
+		default:
+			go d.push(&p)
+			go d.write(&packet{
+				Senderid: p.Senderid,
+				Connid:   p.Connid,
+				Seqid:    p.Seqid,
+				Cmd:      ack,
+			})
 		}
 
 		select {
@@ -178,7 +256,6 @@ func (d *dialer) readloop(u *upstream) {
 			u.send(ping)
 		default:
 		}
-		go d.push(&p)
 	}
 }
 
