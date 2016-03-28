@@ -207,7 +207,7 @@ func (pq *packetQueue) len() (n int) {
 	return
 }
 
-func (pq *packetQueue) add(p *packet) {
+func (pq *packetQueue) add(p *packet) (waitingSeqid uint32) {
 	key := packetKey(p.Senderid, p.Connid)
 
 	pq.mux.Lock()
@@ -220,7 +220,7 @@ func (pq *packetQueue) add(p *packet) {
 		if p.Seqid >= q.waitingSeqid && !ok {
 			q.queue[p.Seqid] = p
 			defer q.Broadcast()
-
+			waitingSeqid = q.waitingSeqid
 		}
 		q.L.Unlock()
 	} else {
@@ -232,6 +232,7 @@ func (pq *packetQueue) add(p *packet) {
 			"pq":     pq,
 		}).Warnln("packetQueue havn't been created, dropping")
 	}
+	return
 }
 
 func (pq *packetQueue) waitforArrived(senderid, connid uint32) {

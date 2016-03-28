@@ -222,7 +222,15 @@ func (d *dialer) push(p *packet) {
 		// TODO: maybe move d.pqd.create(p.Senderid, p.Connid) here?
 
 	case data, closed: //data
-		d.pqd.add(p)
+		waiting := d.pqd.add(p)
+		if waiting > p.Seqid {
+			d.write(&packet{
+				Senderid: p.Senderid,
+				Connid:   p.Connid,
+				Seqid:    waiting,
+				Cmd:      rqu,
+			})
+		}
 
 	default:
 		logrus.WithFields(logrus.Fields{

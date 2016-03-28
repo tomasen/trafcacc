@@ -270,7 +270,15 @@ func (s *serv) push(p *packet) {
 
 	case connect:
 	case close, data:
-		s.pqs.add(p)
+		waiting := s.pqs.add(p)
+		if waiting > p.Seqid {
+			s.write(&packet{
+				Senderid: p.Senderid,
+				Connid:   p.Connid,
+				Seqid:    waiting,
+				Cmd:      rqu,
+			})
+		}
 	default:
 		logrus.WithFields(logrus.Fields{
 			"Cmd": p.Cmd,
