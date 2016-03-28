@@ -226,7 +226,6 @@ func (pq *packetQueue) add(p *packet) (waitingSeqid uint32) {
 			if p.Seqid >= q.waitingSeqid {
 				if t, ok := q.nxrqutime[q.waitingSeqid]; !ok || time.Now().After(t) {
 					waitingSeqid = q.waitingSeqid
-					q.nxrqutime[q.waitingSeqid] = time.Now().Add(time.Second / 4)
 				}
 			}
 		}
@@ -252,7 +251,10 @@ func (pq *packetQueue) waiting(senderid, connid uint32) (waitingSeqid uint32) {
 
 	if exist && q != nil {
 		q.L.Lock()
-		waitingSeqid = q.waitingSeqid
+		if t, ok := q.nxrqutime[q.waitingSeqid]; !ok || time.Now().After(t) {
+			waitingSeqid = q.waitingSeqid
+			q.nxrqutime[q.waitingSeqid] = time.Now().Add(time.Second / 4)
+		}
 		q.L.Unlock()
 		return
 	}
