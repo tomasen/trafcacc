@@ -223,7 +223,7 @@ func (pq *packetQueue) add(p *packet) (waitingSeqid uint32) {
 			q.queue[p.Seqid] = p
 			defer q.Broadcast()
 
-			if p.Seqid >= q.waitingSeqid+10 {
+			if p.Seqid >= q.waitingSeqid {
 				if t, ok := q.nxrqutime[q.waitingSeqid]; !ok || time.Now().After(t) {
 					waitingSeqid = q.waitingSeqid
 					q.nxrqutime[q.waitingSeqid] = time.Now().Add(time.Second / 4)
@@ -254,6 +254,7 @@ func (pq *packetQueue) waiting(senderid, connid uint32) (waitingSeqid uint32) {
 		q.L.Lock()
 		waitingSeqid = q.waitingSeqid
 		q.L.Unlock()
+		return
 	}
 	return 0
 }

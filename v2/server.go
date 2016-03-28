@@ -269,17 +269,23 @@ func (s *serv) push(p *packet) {
 	case data:
 		waiting := s.pqs.add(p)
 		if waiting != 0 && waiting < p.Seqid {
-			s.write(&packet{
-				Senderid: p.Senderid,
-				Connid:   p.Connid,
-				Seqid:    waiting,
-				Cmd:      rqu,
-			})
-			logrus.WithFields(logrus.Fields{
-				"Connid":  p.Connid,
-				"Seqid":   p.Seqid,
-				"Waiting": waiting,
-			}).Debugln("server send packet request")
+			go func() {
+				time.Sleep(time.Second / 10)
+				waiting := s.pqs.waiting(p.Senderid, p.Connid)
+				if waiting != 0 && waiting < p.Seqid {
+					s.write(&packet{
+						Senderid: p.Senderid,
+						Connid:   p.Connid,
+						Seqid:    waiting,
+						Cmd:      rqu,
+					})
+					logrus.WithFields(logrus.Fields{
+						"Connid":  p.Connid,
+						"Seqid":   p.Seqid,
+						"Waiting": waiting,
+					}).Debugln("server send packet request")
+				}
+			}()
 		}
 	default:
 		logrus.WithFields(logrus.Fields{
