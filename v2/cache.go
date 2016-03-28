@@ -18,6 +18,10 @@ func newWriteCache() *writeCache {
 }
 
 func (c *writeCache) add(p *packet) {
+	if p.Buf == nil {
+		return
+	}
+
 	key := packetKey(p.Senderid, p.Connid)
 
 	c.RLock()
@@ -80,10 +84,10 @@ func (c *writeCache) ack(senderid, connid, seqid uint32) {
 	cn.Unlock()
 }
 
-func (c *writeCache) close(senderid, connid, seqid uint32) {
+func (c *writeCache) close(senderid, connid uint32) {
 	key := packetKey(senderid, connid)
 
-	c.RLock()
+	c.Lock()
 	delete(c.conns, key)
-	c.RUnlock()
+	c.Unlock()
 }

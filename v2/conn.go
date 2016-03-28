@@ -54,11 +54,13 @@ func (c *packetconn) Read(b []byte) (n int, err error) {
 
 	c.pq().waitforArrived(c.senderid, c.connid)
 
+	var lastseq uint32
 	for {
 		p := c.pq().pop(c.senderid, c.connid)
 		if p == nil {
 			break
 		}
+		lastseq = p.Seqid
 		// buffered reader writer
 		_, err := c.rdr.Write(p.Buf)
 		if err != nil {
@@ -69,6 +71,13 @@ func (c *packetconn) Read(b []byte) (n int, err error) {
 			break
 		}
 	}
+
+	c.write(&packet{
+		Senderid: c.senderid,
+		Connid:   c.connid,
+		Seqid:    lastseq,
+		Cmd:      ack,
+	})
 
 	if c.pq().isClosed(c.senderid, c.connid) && c.rdr.Len() <= 0 {
 		return 0, io.EOF

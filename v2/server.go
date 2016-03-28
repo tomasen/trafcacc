@@ -238,12 +238,6 @@ func (s *serv) proc(u *upstream, p *packet) error {
 		}
 	default:
 		go s.push(p)
-		go s.write(&packet{
-			Senderid: p.Senderid,
-			Connid:   p.Connid,
-			Seqid:    p.Seqid,
-			Cmd:      ack,
-		})
 	}
 	return nil
 }
@@ -269,15 +263,23 @@ func (s *serv) push(p *packet) {
 	switch p.Cmd {
 
 	case connect:
-	case close, data:
+	case close:
+		s.pqs.add(p)
+		s.pool.cache.close(p.Senderid, p.Connid)
+	case data:
 		waiting := s.pqs.add(p)
-		if waiting > p.Seqid {
+		if waiting != 0 && waiting < p.Seqid {
 			s.write(&packet{
 				Senderid: p.Senderid,
 				Connid:   p.Connid,
 				Seqid:    waiting,
 				Cmd:      rqu,
 			})
+			logrus.WithFields(logrus.Fields{
+				"Connid":  p.Connid,
+				"Seqid":   p.Seqid,
+				"Waiting": waiting,
+			}).Debugln("server send packet request")
 		}
 	default:
 		logrus.WithFields(logrus.Fields{

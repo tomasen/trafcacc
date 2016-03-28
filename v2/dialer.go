@@ -188,12 +188,6 @@ func (d *dialer) proc(u *upstream, p *packet) {
 		}
 	default:
 		go d.push(p)
-		go d.write(&packet{
-			Senderid: p.Senderid,
-			Connid:   p.Connid,
-			Seqid:    p.Seqid,
-			Cmd:      ack,
-		})
 	}
 }
 
@@ -220,16 +214,23 @@ func (d *dialer) push(p *packet) {
 	switch p.Cmd {
 	case connected:
 		// TODO: maybe move d.pqd.create(p.Senderid, p.Connid) here?
-
-	case data, closed: //data
+	case closed:
+		d.pqd.add(p)
+		d.pool.cache.close(p.Senderid, p.Connid)
+	case data: //data
 		waiting := d.pqd.add(p)
-		if waiting > p.Seqid {
+		if waiting != 0 && waiting < p.Seqid {
 			d.write(&packet{
 				Senderid: p.Senderid,
 				Connid:   p.Connid,
 				Seqid:    waiting,
 				Cmd:      rqu,
 			})
+			logrus.WithFields(logrus.Fields{
+				"Connid":  p.Connid,
+				"Seqid":   p.Seqid,
+				"Waiting": waiting,
+			}).Debugln("dialer send packet request")
 		}
 
 	default:
