@@ -167,22 +167,10 @@ func (s *serv) udphandler(conn *net.UDPConn) {
 			continue
 		}
 
-		atomic.AddUint64(&u.recv, uint64(len(p.Buf)))
-
-		switch p.Cmd {
-		case ping:
-			atomic.StoreInt64(&u.alive, time.Now().UnixNano())
-			s.pool.Broadcast()
-
-			// reply
-			err := u.send(pong)
-			if err != nil {
-				return
-			}
-			continue
-		default:
-			p.udp = true
-			go s.push(&p)
+		p.udp = true
+		if err := s.proc(&u, &p); err != nil {
+			logrus.WithError(err).Warn("serve send pong err")
+			return
 		}
 	}
 }
@@ -215,23 +203,32 @@ func (s *serv) tcphandler(conn net.Conn) {
 			logrus.Warnln("packetHandler() Decode err:", err)
 			break
 		}
-		atomic.AddUint64(&u.recv, uint64(len(p.Buf)))
 
-		switch p.Cmd {
-		case ping:
-			atomic.StoreInt64(&u.alive, time.Now().UnixNano())
-			s.pool.Broadcast()
-
-			// reply
-			err := u.send(pong)
-			if err != nil {
-				break
-			}
-			continue
-		default:
-			go s.push(&p)
+		if err := s.proc(&u, &p); err != nil {
+			logrus.WithError(err).Warn("serve send pong err")
+			return
 		}
 	}
+}
+
+func (s *serv) proc(u *upstream, p *packet) error {
+
+	atomic.AddUint64(&u.recv, uint64(len(p.Buf)))
+
+	switch p.Cmd {
+	case ping:
+		atomic.StoreInt64(&u.alive, time.Now().UnixNano())
+		s.pool.Broadcast()
+
+		// reply
+		err := u.send(pong)
+		if err != nil {
+			return err
+		}
+	default:
+		go s.push(p)
+	}
+	return nil
 }
 
 func (mux *serve) write(p *packet) error {

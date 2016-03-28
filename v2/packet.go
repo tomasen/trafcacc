@@ -20,6 +20,8 @@ const (
 	connected
 	ping
 	pong
+	rqu
+	ack
 )
 
 type packet struct {
