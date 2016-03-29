@@ -1,6 +1,7 @@
 package trafcacc
 
 import (
+	"sync/atomic"
 	"time"
 
 	"github.com/Sirupsen/logrus"
@@ -20,6 +21,25 @@ func newNode() *node {
 
 func (n *node) write(p *packet) error {
 	return n.pool.write(p)
+}
+
+func (n *node) proc(u *upstream, p *packet) {
+
+	atomic.AddUint64(&u.recv, uint64(len(p.Buf)))
+
+	switch p.Cmd {
+	case ping, pong:
+		atomic.StoreInt64(&u.alive, time.Now().UnixNano())
+		n.pool.Broadcast()
+	case ack:
+		n.pool.cache.ack(p.Senderid, p.Connid, p.Seqid)
+	case rqu:
+		rp := n.pool.cache.get(p.Senderid, p.Connid, p.Seqid)
+		if rp != nil {
+			n.write(rp)
+		}
+	}
+	return
 }
 
 func (n *node) push(p *packet) {

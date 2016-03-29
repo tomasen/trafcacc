@@ -5,8 +5,6 @@ import (
 	"net"
 	"strconv"
 	"sync"
-	"sync/atomic"
-	"time"
 
 	"github.com/Sirupsen/logrus"
 )
@@ -214,27 +212,15 @@ func (s *serv) tcphandler(conn net.Conn) {
 }
 
 func (s *serv) proc(u *upstream, p *packet) error {
-
-	atomic.AddUint64(&u.recv, uint64(len(p.Buf)))
-
+	s.node.proc(u, p)
 	switch p.Cmd {
 	case ping:
-		atomic.StoreInt64(&u.alive, time.Now().UnixNano())
-		s.pool.Broadcast()
-
 		// reply
 		err := u.send(pong)
 		if err != nil {
 			return err
 		}
-	case ack:
-		s.pool.cache.ack(p.Senderid, p.Connid, p.Seqid)
-	case rqu:
-		rp := s.pool.cache.get(p.Senderid, p.Connid, p.Seqid)
-		if rp != nil {
-			s.write(rp)
-		}
-	default:
+	case data:
 		go s.push(p)
 	}
 	return nil

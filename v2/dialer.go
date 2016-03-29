@@ -150,6 +150,13 @@ func (d *dialer) readtcp(u *upstream) {
 	}
 }
 
+func (d *dialer) proc(u *upstream, p *packet) {
+	d.node.proc(u, p)
+	if p.Cmd == data {
+		go d.push(p)
+	}
+}
+
 func (d *dialer) readudp(u *upstream) {
 	for {
 		p := packet{}
@@ -166,26 +173,6 @@ func (d *dialer) readudp(u *upstream) {
 		p.udp = true
 
 		d.proc(u, &p)
-	}
-}
-
-func (d *dialer) proc(u *upstream, p *packet) {
-	atomic.AddUint64(&u.recv, uint64(len(p.Buf)))
-
-	switch p.Cmd {
-	case pong:
-		// set alive only when received pong
-		atomic.StoreInt64(&u.alive, time.Now().UnixNano())
-		d.pool.Broadcast()
-	case ack:
-		d.pool.cache.ack(p.Senderid, p.Connid, p.Seqid)
-	case rqu:
-		rp := d.pool.cache.get(p.Senderid, p.Connid, p.Seqid)
-		if rp != nil {
-			d.write(rp)
-		}
-	default:
-		go d.push(p)
 	}
 }
 
