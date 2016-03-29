@@ -41,9 +41,20 @@ func (n *node) proc(u *upstream, p *packet) {
 
 	atomic.AddUint64(&u.recv, uint64(len(p.Buf)))
 
+	now := time.Now().UnixNano()
+	if p.Time != 0 {
+		jitter := now - p.Time
+		jj := atomic.LoadInt64(&u.jitter)
+		if jj > jitter {
+			atomic.StoreInt64(&u.jitter, jitter)
+		} else {
+			atomic.StoreInt64(&u.latency, jitter-jj)
+		}
+	}
+
 	switch p.Cmd {
 	case ping, pong:
-		atomic.StoreInt64(&u.alive, time.Now().UnixNano())
+		atomic.StoreInt64(&u.alive, now)
 		n.pool.Broadcast()
 	case ack:
 		n.pool.cache.ack(p.Senderid, p.Connid, p.Seqid)
@@ -78,6 +89,7 @@ func (n *node) push(p *packet) {
 			Connid:   p.Connid,
 			Seqid:    stillwaiting,
 			Cmd:      rqu,
+			Time:     time.Now().UnixNano(),
 		})
 		if logrus.GetLevel() >= logrus.DebugLevel {
 			logrus.WithFields(logrus.Fields{

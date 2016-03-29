@@ -27,6 +27,7 @@ func (t *trafcacc) Status() {
 		t.pool.mux.RLock()
 		// var us, ts, ur, tr string
 		var su, st, ru, rt uint64
+		var latency string
 		for _, v := range t.pool.pool {
 			s := atomic.LoadUint64(&v.sent)
 			r := atomic.LoadUint64(&v.recv)
@@ -41,6 +42,7 @@ func (t *trafcacc) Status() {
 				// ts += humanbyte(s) + ","
 				// tr += humanbyte(r) + ","
 			}
+			latency += humanize.Ftoa(float64(atomic.LoadInt64(&v.latency))/float64(time.Millisecond)) + ","
 		}
 		t.pool.mux.RUnlock()
 		fields["Sent(U)"] = humanbyte(su) // + "(" + strings.TrimRight(us, ",") + ")"
@@ -53,6 +55,7 @@ func (t *trafcacc) Status() {
 		fields["POP(U)"] = humanbyte(atomic.LoadUint64(&t.pconn.pq().popudp))
 
 		fields["PQLEN"] = t.pconn.pq().len()
+		fields["LATENCY"] = latency
 	}
 
 	logrus.WithFields(fields).Infoln(t.roleString(), "status")

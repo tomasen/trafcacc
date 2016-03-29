@@ -18,8 +18,10 @@ type upstream struct {
 	grp   int
 
 	// status recorder
-	sent uint64
-	recv uint64
+	sent    uint64
+	recv    uint64
+	jitter  int64
+	latency int64
 
 	// tcp only
 	encoder *gob.Encoder
@@ -34,13 +36,24 @@ type upstream struct {
 	addr string
 }
 
+func newUpstream(proto string) *upstream {
+	return &upstream{
+		proto:  proto,
+		jitter: int64(^uint64(0) >> 1),
+	}
+}
+
 func (u *upstream) send(cmd cmd) error {
-	p := &packet{Cmd: cmd}
+	p := &packet{
+		Cmd:  cmd,
+		Time: time.Now().UnixNano(),
+	}
 	return u.sendpacket(p)
 }
 
 func (u *upstream) sendpacket(p *packet) error {
 	atomic.AddUint64(&u.sent, uint64(len(p.Buf)))
+
 	switch u.proto {
 	case tcp:
 		err := u.encoder.Encode(p)

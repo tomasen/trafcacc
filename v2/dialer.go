@@ -33,9 +33,10 @@ func (d *dialer) Setup(server string) {
 	for _, e := range parse(server) {
 		grp := 0
 		for p := e.portBegin; p <= e.portEnd; p++ {
-			u := upstream{proto: e.proto, addr: net.JoinHostPort(e.host, strconv.Itoa(p))}
-			d.pool.append(&u, grp)
-			go d.connect(&u)
+			u := newUpstream(e.proto)
+			u.addr = net.JoinHostPort(e.host, strconv.Itoa(p))
+			d.pool.append(u, grp)
+			go d.connect(u)
 		}
 		grp++
 	}
@@ -79,6 +80,7 @@ func (d *dialer) DialTimeout(timeout time.Duration) (net.Conn, error) {
 		Senderid: d.identity,
 		Connid:   conn.connid,
 		Cmd:      connect,
+		Time:     time.Now().UnixNano(),
 	})
 
 	return conn, nil

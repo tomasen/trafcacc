@@ -106,6 +106,7 @@ func (c *packetconn) Write(b0 []byte) (n int, err error) {
 			Seqid:    atomic.AddUint32(&c.seqid, 1),
 			Connid:   c.connid,
 			Buf:      b[m : m+sz],
+			Time:     time.Now().UnixNano(),
 		}
 		if atomic.LoadInt32(&c.parallel) > 300 {
 			e0 := c.write(p)
@@ -141,6 +142,7 @@ func (c *packetconn) Close() error {
 		Seqid:    atomic.AddUint32(&c.seqid, 1),
 		Connid:   c.connid,
 		Cmd:      cmd,
+		Time:     time.Now().UnixNano(),
 	})
 
 	// TODO: unblock read and write and return errors

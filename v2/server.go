@@ -5,6 +5,7 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/Sirupsen/logrus"
 )
@@ -127,15 +128,14 @@ func (s *serv) listen() {
 }
 
 func (s *serv) udphandler(conn *net.UDPConn) {
-	u := upstream{
-		proto:   s.proto,
-		udpconn: conn,
-	}
+	u := newUpstream(s.proto)
+	u.udpconn = conn
+
 	// add to pool
-	s.pool.append(&u, 0)
+	s.pool.append(u, 0)
 	defer func() {
 		u.close()
-		s.pool.remove(&u)
+		s.pool.remove(u)
 	}()
 
 	for {
@@ -156,7 +156,7 @@ func (s *serv) udphandler(conn *net.UDPConn) {
 		}
 
 		p.udp = true
-		if err := s.proc(&u, &p); err != nil {
+		if err := s.proc(u, &p); err != nil {
 			logrus.WithError(err).Warn("serve send pong err")
 			return
 		}
@@ -170,19 +170,17 @@ func (s *serv) tcphandler(conn net.Conn) {
 	enc := gob.NewEncoder(conn)
 
 	// add to pool
-	u := upstream{
-		proto:   s.proto,
-		encoder: enc,
-		decoder: dec,
-	}
+	u := newUpstream(s.proto)
+	u.encoder = enc
+	u.decoder = dec
 
 	defer func() {
 		conn.Close()
 		// remove from pool
-		s.pool.remove(&u)
+		s.pool.remove(u)
 	}()
 
-	s.pool.append(&u, 0)
+	s.pool.append(u, 0)
 
 	for {
 		p := packet{}
@@ -192,7 +190,7 @@ func (s *serv) tcphandler(conn net.Conn) {
 			break
 		}
 
-		if err := s.proc(&u, &p); err != nil {
+		if err := s.proc(u, &p); err != nil {
 			logrus.WithError(err).Warn("serve send pong err")
 			return
 		}
@@ -221,6 +219,7 @@ func (s *serv) push(p *packet) {
 			Senderid: p.Senderid,
 			Connid:   p.Connid,
 			Cmd:      connected,
+			Time:     time.Now().UnixNano(),
 		})
 
 		conn := newConn(s.serve, p.Senderid, p.Connid)

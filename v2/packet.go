@@ -31,6 +31,7 @@ type packet struct {
 	Buf      []byte
 	Cmd      cmd
 	udp      bool
+	Time     int64
 }
 
 func (p *packet) copy() *packet {
@@ -46,6 +47,7 @@ func (p *packet) copy() *packet {
 		Cmd:      p.Cmd,
 		Buf:      buf,
 		udp:      p.udp,
+		Time:     p.Time,
 	}
 }
 
@@ -59,6 +61,7 @@ func (p *packet) encode(b []byte) (n int) {
 	n += binary.PutUvarint(b[n:], uint64(p.Connid))
 	n += binary.PutUvarint(b[n:], uint64(p.Seqid))
 	n += binary.PutUvarint(b[n:], uint64(p.Cmd))
+	n += binary.PutUvarint(b[n:], uint64(atomic.LoadInt64(&p.Time)))
 	n += binary.PutUvarint(b[n:], uint64(len(p.Buf)))
 	if len(p.Buf) > 0 {
 		n += copy(b[n:], p.Buf)
@@ -100,6 +103,13 @@ func decodePacket(b []byte, p *packet) (err error) {
 	}
 	n += m
 	p.Cmd = cmd(i)
+
+	i, m = binary.Uvarint(b[n:])
+	if m <= 0 {
+		return
+	}
+	n += m
+	p.Time = int64(i)
 
 	i, m = binary.Uvarint(b[n:])
 	if m <= 0 {

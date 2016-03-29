@@ -66,7 +66,8 @@ func (t *trafcacc) accelerate(l, u string) {
 		// connect to upstream
 		for _, e := range parse(u) {
 			for p := e.portBegin; p <= e.portEnd; p++ {
-				t.remote = &upstream{proto: e.proto, addr: net.JoinHostPort(e.host, strconv.Itoa(p))}
+				t.remote = newUpstream(e.proto)
+				t.remote.addr = net.JoinHostPort(e.host, strconv.Itoa(p))
 				break
 			}
 		}
