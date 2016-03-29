@@ -33,7 +33,7 @@ func NewServe() Serve {
 func newServe() *serve {
 	return &serve{
 		Cond: sync.NewCond(&sync.Mutex{}),
-		node: newNode(),
+		node: newNode("server"),
 	}
 }
 
@@ -68,18 +68,6 @@ func (mux *serve) waitforalive() {
 		mux.Wait()
 	}
 	mux.L.Unlock()
-}
-
-func (mux *serve) streampool() *streampool {
-	return mux.pool
-}
-
-func (mux *serve) pq() *packetQueue {
-	return mux.pqs
-}
-
-func (mux *serve) role() string {
-	return "server"
 }
 
 type serv struct {

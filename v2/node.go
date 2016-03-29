@@ -10,13 +10,27 @@ import (
 type node struct {
 	pool *streampool
 	pqs  *packetQueue
+	name string
 }
 
-func newNode() *node {
+func newNode(name string) *node {
 	return &node{
 		pqs:  newPacketQueue(),
 		pool: newStreamPool(),
+		name: name,
 	}
+}
+
+func (n *node) streampool() *streampool {
+	return n.pool
+}
+
+func (n *node) pq() *packetQueue {
+	return n.pqs
+}
+
+func (n *node) role() string {
+	return n.name
 }
 
 func (n *node) write(p *packet) error {

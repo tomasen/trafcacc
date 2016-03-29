@@ -24,7 +24,7 @@ type dialer struct {
 func newDialer() *dialer {
 	return &dialer{
 		identity: rand.Uint32(),
-		node:     newNode(),
+		node:     newNode("dialer"),
 	}
 }
 
@@ -82,19 +82,6 @@ func (d *dialer) DialTimeout(timeout time.Duration) (net.Conn, error) {
 	})
 
 	return conn, nil
-}
-
-func (d *dialer) streampool() *streampool {
-	return d.pool
-}
-
-func (d *dialer) pq() *packetQueue {
-	return d.pqs
-}
-
-func (d *dialer) role() string {
-	// TODO: return tag
-	return "dialer"
 }
 
 // connect to upstream server and keep tunnel alive
