@@ -8,9 +8,10 @@ import (
 )
 
 type node struct {
-	pool *streampool
-	pqs  *packetQueue
-	name string
+	pool    *streampool
+	pqs     *packetQueue
+	name    string
+	lastack int64
 }
 
 func newNode(name string) *node {
@@ -77,12 +78,16 @@ func (n *node) push(p *packet) {
 	case data: //data
 		waiting := n.pqs.add(p)
 		if waiting >= p.Seqid {
-			n.write(&packet{
-				Senderid: p.Senderid,
-				Connid:   p.Connid,
-				Seqid:    p.Seqid,
-				Cmd:      ack,
-			})
+			now := time.Now().UnixNano()
+			if now > atomic.LoadInt64(&n.lastack) {
+				n.write(&packet{
+					Senderid: p.Senderid,
+					Connid:   p.Connid,
+					Seqid:    p.Seqid,
+					Cmd:      ack,
+				})
+				atomic.StoreInt64(&n.lastack, now+int64(time.Second))
+			}
 			break
 		}
 		time.Sleep(rqudelay)
