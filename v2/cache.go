@@ -27,6 +27,7 @@ func (c *writeCache) add(p *packet) {
 	c.Lock()
 	cn, exist := c.conns[key]
 	if !exist {
+		// TODO: only create when connect or conected
 		cn = &connCache{
 			seqence: make(map[uint32]*packet),
 		}
@@ -61,6 +62,10 @@ func (c *writeCache) get(senderid, connid, seqid uint32) *packet {
 }
 
 func (c *writeCache) ack(senderid, connid, seqid uint32) {
+	if seqid < 110 {
+		return
+	}
+	seqid -= 100
 	key := packetKey(senderid, connid)
 
 	c.RLock()
