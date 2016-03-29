@@ -27,8 +27,7 @@ type packetconn struct {
 	rdr bytes.Buffer
 
 	// Write
-	werr  atomic.Value
-	pchan chan *packet
+	werr atomic.Value
 }
 
 func newConn(c pconn, senderid, connid uint32) *packetconn {
@@ -36,10 +35,7 @@ func newConn(c pconn, senderid, connid uint32) *packetconn {
 		pconn:    c,
 		senderid: senderid,
 		connid:   connid,
-		pchan:    make(chan *packet, 2000),
 	}
-
-	go conn.writeloop()
 
 	return conn
 }
@@ -111,25 +107,16 @@ func (c *packetconn) Write(b0 []byte) (n int, err error) {
 			Buf:      b[m : m+sz],
 		}
 
-		c.pchan <- p
+		go func() {
+			e0 := c.write(p)
+			if e0 != nil {
+				c.werr.Store(e0)
+			}
+		}()
+
 	}
 
 	return n, nil
-}
-
-func (c *packetconn) writeloop() {
-	for {
-		p := <-c.pchan
-		if p == nil {
-			// closed
-			break
-		}
-		e0 := c.write(p)
-		if e0 != nil {
-			c.werr.Store(e0)
-			break
-		}
-	}
 }
 
 // Close closes the connection.
@@ -150,8 +137,6 @@ func (c *packetconn) Close() error {
 	// TODO: unblock read and write and return errors
 
 	c.pq().close(c.senderid, c.connid)
-
-	c.pchan <- nil
 
 	return err
 }

@@ -57,7 +57,6 @@ func (n *node) proc(u *upstream, p *packet) {
 }
 
 func (n *node) push(p *packet) {
-
 	switch p.Cmd {
 	case connected, connect:
 		// TODO: maybe move d.pqs.create(p.Senderid, p.Connid) here?
