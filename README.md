@@ -26,6 +26,7 @@ back-end:
 
 #### TODO
 
-- 更多参考 mptcp， 加入 ack 和 req，如果长时间没有收到包可以重发或要求重发
+- 记录每个 upstream 的 latency 并合理安排优先使用那些upstream
+- 更合理的控制要求重发的频率
 - 如果backend没有重新启动 frontend就连接上去，会收到不存在的packetQueue 导致退出的问题
 - performance improvement 提高性能、速度和响应时间。目前问题：写时需要加锁，否则就要大量memcopy，需要找折中方案； buffersize 为了避免udp message too long的问题必须设置的比较小，可能因此导致性能下降；其他性能瓶颈
