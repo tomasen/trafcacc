@@ -1,6 +1,7 @@
 package trafcacc
 
 import (
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -12,6 +13,8 @@ type node struct {
 	pqs     *packetQueue
 	name    string
 	lastack int64
+	lastrqu int64
+	mux     sync.Mutex
 }
 
 func newNode(name string) *node {
@@ -62,7 +65,19 @@ func (n *node) proc(u *upstream, p *packet) {
 	case rqu:
 		rp := n.pool.cache.get(p.Senderid, p.Connid, p.Seqid)
 		if rp != nil {
-			n.write(rp)
+			n.mux.Lock()
+			now := time.Now().UnixNano()
+			if rp.Time < now-int64(rqudelay) {
+				rp.Time = now
+				n.write(rp)
+			}
+			n.mux.Unlock()
+		} else {
+			logrus.WithFields(logrus.Fields{
+				"Senderid": p.Senderid,
+				"Connid":   p.Connid,
+				"Seqid":    p.Seqid,
+			}).Debugln("unable to fullfile packet request")
 		}
 	}
 	return
@@ -78,16 +93,19 @@ func (n *node) push(p *packet) {
 	case data: //data
 		waiting := n.pqs.add(p)
 		if waiting >= p.Seqid {
+			n.mux.Lock()
 			now := time.Now().UnixNano()
-			if now > atomic.LoadInt64(&n.lastack) {
+			if now > n.lastack {
 				n.write(&packet{
 					Senderid: p.Senderid,
 					Connid:   p.Connid,
 					Seqid:    p.Seqid,
 					Cmd:      ack,
+					Time:     now,
 				})
-				atomic.StoreInt64(&n.lastack, now+int64(time.Second))
+				n.lastack = now + int64(time.Second)
 			}
+			n.mux.Unlock()
 			break
 		}
 		time.Sleep(rqudelay)
@@ -95,23 +113,28 @@ func (n *node) push(p *packet) {
 		if stillwaiting >= p.Seqid || stillwaiting != waiting {
 			break
 		}
-		n.write(&packet{
-			Senderid: p.Senderid,
-			Connid:   p.Connid,
-			Seqid:    stillwaiting,
-			Cmd:      rqu,
-			Time:     time.Now().UnixNano(),
-		})
-		if logrus.GetLevel() >= logrus.DebugLevel {
-			logrus.WithFields(logrus.Fields{
-				"Connid":       p.Connid,
-				"Seqid":        p.Seqid,
-				"Waiting":      waiting,
-				"StillWaiting": stillwaiting,
-				"role":         n.role(),
-			}).Debugln("send packet request")
+		n.mux.Lock()
+		now := time.Now().UnixNano()
+		if now > n.lastrqu {
+			n.write(&packet{
+				Senderid: p.Senderid,
+				Connid:   p.Connid,
+				Seqid:    stillwaiting,
+				Cmd:      rqu,
+				Time:     time.Now().UnixNano(),
+			})
+			if logrus.GetLevel() >= logrus.DebugLevel {
+				logrus.WithFields(logrus.Fields{
+					"Connid":       p.Connid,
+					"Seqid":        p.Seqid,
+					"Waiting":      waiting,
+					"StillWaiting": stillwaiting,
+					"role":         n.role(),
+				}).Debugln("send packet request")
+			}
+			n.lastrqu = now + int64(time.Second)
 		}
-
+		n.mux.Unlock()
 	default:
 		logrus.WithFields(logrus.Fields{
 			"Cmd": p.Cmd,

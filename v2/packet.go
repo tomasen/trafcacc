@@ -126,7 +126,6 @@ func decodePacket(b []byte, p *packet) (err error) {
 type queue struct {
 	*sync.Cond
 	queue        map[uint32]*packet
-	nxrqutime    map[uint32]time.Time
 	waitingSeqid uint32
 	closed       int64
 }
@@ -135,7 +134,6 @@ func newQueue() *queue {
 	return &queue{
 		Cond:         sync.NewCond(&sync.Mutex{}),
 		queue:        make(map[uint32]*packet),
-		nxrqutime:    make(map[uint32]time.Time),
 		waitingSeqid: 1,
 	}
 }
@@ -236,9 +234,7 @@ func (pq *packetQueue) add(p *packet) (waitingSeqid uint32) {
 			defer q.Broadcast()
 
 			if p.Seqid >= q.waitingSeqid {
-				if t, ok := q.nxrqutime[q.waitingSeqid]; !ok || time.Now().After(t) {
-					waitingSeqid = q.waitingSeqid
-				}
+				waitingSeqid = q.waitingSeqid
 			}
 		}
 		q.L.Unlock()
@@ -263,10 +259,7 @@ func (pq *packetQueue) waiting(senderid, connid uint32) (waitingSeqid uint32) {
 
 	if exist && q != nil {
 		q.L.Lock()
-		if t, ok := q.nxrqutime[q.waitingSeqid]; !ok || time.Now().After(t) {
-			waitingSeqid = q.waitingSeqid
-			q.nxrqutime[q.waitingSeqid] = time.Now().Add(rqudelay)
-		}
+		waitingSeqid = q.waitingSeqid
 		q.L.Unlock()
 		return
 	}

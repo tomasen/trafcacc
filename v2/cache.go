@@ -24,17 +24,15 @@ func (c *writeCache) add(p *packet) {
 
 	key := packetKey(p.Senderid, p.Connid)
 
-	c.RLock()
+	c.Lock()
 	cn, exist := c.conns[key]
-	c.RUnlock()
 	if !exist {
 		cn = &connCache{
 			seqence: make(map[uint32]*packet),
 		}
-		c.Lock()
 		c.conns[key] = cn
-		c.Unlock()
 	}
+	c.Unlock()
 
 	cn.Lock()
 	if p.Seqid > cn.lastack {
@@ -80,6 +78,9 @@ func (c *writeCache) ack(senderid, connid, seqid uint32) {
 			// maybe performance effictive
 			break
 		}
+	}
+	if seqid > cn.lastack {
+		cn.lastack = seqid
 	}
 	cn.Unlock()
 }
