@@ -13,11 +13,10 @@ import (
 
 type serve struct {
 	*sync.Cond
+	*node
+
 	alive   bool
 	handler Handler
-
-	pool *streampool
-	pqs  *packetQueue
 }
 
 // HandlerFunc TODO: comment
@@ -36,8 +35,7 @@ func NewServe() Serve {
 func newServe() *serve {
 	return &serve{
 		Cond: sync.NewCond(&sync.Mutex{}),
-		pqs:  newPacketQueue(),
-		pool: newStreamPool(),
+		node: newNode(),
 	}
 }
 
@@ -242,10 +240,6 @@ func (s *serv) proc(u *upstream, p *packet) error {
 	return nil
 }
 
-func (mux *serve) write(p *packet) error {
-	return mux.pool.write(p)
-}
-
 func (s *serv) push(p *packet) {
 	if s.pqs.create(p.Senderid, p.Connid) {
 		// it's new conn
@@ -260,36 +254,5 @@ func (s *serv) push(p *packet) {
 		s.handler.Serve(conn)
 	}
 
-	switch p.Cmd {
-
-	case connect:
-	case close:
-		s.pqs.add(p)
-		s.pool.cache.close(p.Senderid, p.Connid)
-	case data:
-		waiting := s.pqs.add(p)
-		if waiting != 0 && waiting < p.Seqid {
-			go func() {
-				time.Sleep(time.Second / 10)
-				waiting := s.pqs.waiting(p.Senderid, p.Connid)
-				if waiting != 0 && waiting < p.Seqid {
-					s.write(&packet{
-						Senderid: p.Senderid,
-						Connid:   p.Connid,
-						Seqid:    waiting,
-						Cmd:      rqu,
-					})
-					logrus.WithFields(logrus.Fields{
-						"Connid":  p.Connid,
-						"Seqid":   p.Seqid,
-						"Waiting": waiting,
-					}).Debugln("server send packet request")
-				}
-			}()
-		}
-	default:
-		logrus.WithFields(logrus.Fields{
-			"Cmd": p.Cmd,
-		}).Warnln("unexpected Cmd in packet on server", closed)
-	}
+	s.node.push(p)
 }

@@ -13,20 +13,18 @@ import (
 )
 
 type dialer struct {
+	*node
+
 	identity uint32
 	atomicid uint32
 
 	udpbuf []byte
-
-	pool *streampool
-	pqd  *packetQueue
 }
 
 func newDialer() *dialer {
 	return &dialer{
-		pool:     newStreamPool(),
 		identity: rand.Uint32(),
-		pqd:      newPacketQueue(),
+		node:     newNode(),
 	}
 }
 
@@ -74,7 +72,7 @@ func (d *dialer) DialTimeout(timeout time.Duration) (net.Conn, error) {
 
 	conn := newConn(d, d.identity, atomic.AddUint32(&d.atomicid, 1))
 
-	d.pqd.create(conn.senderid, conn.connid)
+	d.pqs.create(conn.senderid, conn.connid)
 
 	// send connect cmd
 	d.write(&packet{
@@ -91,7 +89,7 @@ func (d *dialer) streampool() *streampool {
 }
 
 func (d *dialer) pq() *packetQueue {
-	return d.pqd
+	return d.pqs
 }
 
 func (d *dialer) role() string {
@@ -200,47 +198,5 @@ func (d *dialer) pingloop(u *upstream) {
 			break
 		}
 		<-ch
-	}
-}
-
-func (d *dialer) write(p *packet) error {
-	// return error if all failed
-	return d.pool.write(p)
-}
-
-// push packet to packet queue
-func (d *dialer) push(p *packet) {
-
-	switch p.Cmd {
-	case connected:
-		// TODO: maybe move d.pqd.create(p.Senderid, p.Connid) here?
-	case closed:
-		d.pqd.add(p)
-		d.pool.cache.close(p.Senderid, p.Connid)
-	case data: //data
-		waiting := d.pqd.add(p)
-		if waiting != 0 && waiting < p.Seqid {
-			go func() {
-				time.Sleep(time.Second / 10)
-				waiting := d.pqd.waiting(p.Senderid, p.Connid)
-				if waiting != 0 && waiting < p.Seqid {
-					d.write(&packet{
-						Senderid: p.Senderid,
-						Connid:   p.Connid,
-						Seqid:    waiting,
-						Cmd:      rqu,
-					})
-					logrus.WithFields(logrus.Fields{
-						"Connid":  p.Connid,
-						"Seqid":   p.Seqid,
-						"Waiting": waiting,
-					}).Debugln("dialer send packet request")
-				}
-			}()
-		}
-	default:
-		logrus.WithFields(logrus.Fields{
-			"Cmd": p.Cmd,
-		}).Warnln("unexpected Cmd in packet")
 	}
 }
