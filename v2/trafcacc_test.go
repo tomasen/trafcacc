@@ -66,7 +66,7 @@ func TestDialTCP(t *testing.T) {
 }
 
 func TestDialUDP(t *testing.T) {
-	testDial("udp://127.0.0.1:53010-53020", "udp://:53010-53020", t)
+	testDial("udp://127.0.0.1:54010-54020", "udp://:54010-54020", t)
 }
 
 func testDial(f, s string, t *testing.T) {

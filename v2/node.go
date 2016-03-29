@@ -77,6 +77,12 @@ func (n *node) push(p *packet) {
 	case data: //data
 		waiting := n.pqs.add(p)
 		if waiting >= p.Seqid {
+			n.write(&packet{
+				Senderid: p.Senderid,
+				Connid:   p.Connid,
+				Seqid:    p.Seqid,
+				Cmd:      ack,
+			})
 			break
 		}
 		time.Sleep(rqudelay)
