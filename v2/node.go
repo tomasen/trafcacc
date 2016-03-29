@@ -67,23 +67,22 @@ func (n *node) push(p *packet) {
 	case data: //data
 		waiting := n.pqs.add(p)
 		if waiting != 0 && waiting < p.Seqid {
-			go func() {
-				time.Sleep(time.Second / 10)
-				waiting := n.pqs.waiting(p.Senderid, p.Connid)
-				if waiting != 0 && waiting < p.Seqid {
-					n.write(&packet{
-						Senderid: p.Senderid,
-						Connid:   p.Connid,
-						Seqid:    waiting,
-						Cmd:      rqu,
-					})
-					logrus.WithFields(logrus.Fields{
-						"Connid":  p.Connid,
-						"Seqid":   p.Seqid,
-						"Waiting": waiting,
-					}).Debugln("dialer send packet request")
-				}
-			}()
+			time.Sleep(time.Second / 10)
+			swaiting := n.pqs.waiting(p.Senderid, p.Connid)
+			if swaiting != 0 && swaiting < p.Seqid && swaiting == waiting {
+				n.write(&packet{
+					Senderid: p.Senderid,
+					Connid:   p.Connid,
+					Seqid:    swaiting,
+					Cmd:      rqu,
+				})
+				logrus.WithFields(logrus.Fields{
+					"Connid":  p.Connid,
+					"Seqid":   p.Seqid,
+					"Waiting": waiting,
+					"role":    n.role(),
+				}).Debugln("send packet request")
+			}
 		}
 	default:
 		logrus.WithFields(logrus.Fields{
