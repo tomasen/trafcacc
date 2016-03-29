@@ -216,6 +216,8 @@ func (pq *packetQueue) add(p *packet) (waitingSeqid uint32) {
 	q, exist := pq.queues[key]
 	pq.mux.Unlock()
 
+	waitingSeqid = ^uint32(0) // wait no more
+
 	if exist && q != nil {
 		q.L.Lock()
 		_, ok := q.queue[p.Seqid]
@@ -253,12 +255,12 @@ func (pq *packetQueue) waiting(senderid, connid uint32) (waitingSeqid uint32) {
 		q.L.Lock()
 		if t, ok := q.nxrqutime[q.waitingSeqid]; !ok || time.Now().After(t) {
 			waitingSeqid = q.waitingSeqid
-			q.nxrqutime[q.waitingSeqid] = time.Now().Add(time.Second / 4)
+			q.nxrqutime[q.waitingSeqid] = time.Now().Add(rqudelay)
 		}
 		q.L.Unlock()
 		return
 	}
-	return 0
+	return ^uint32(0)
 }
 
 func (pq *packetQueue) waitforArrived(senderid, connid uint32) {

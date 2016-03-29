@@ -65,26 +65,30 @@ func (n *node) push(p *packet) {
 		n.pool.cache.close(p.Senderid, p.Connid)
 	case data: //data
 		waiting := n.pqs.add(p)
-		if waiting != 0 && waiting < p.Seqid {
-			time.Sleep(time.Second / 10)
-			stillwaiting := n.pqs.waiting(p.Senderid, p.Connid)
-			if stillwaiting != 0 && stillwaiting < p.Seqid && stillwaiting == waiting {
-				n.write(&packet{
-					Senderid: p.Senderid,
-					Connid:   p.Connid,
-					Seqid:    stillwaiting,
-					Cmd:      rqu,
-				})
-				if logrus.GetLevel() >= logrus.DebugLevel {
-					logrus.WithFields(logrus.Fields{
-						"Connid":  p.Connid,
-						"Seqid":   p.Seqid,
-						"Waiting": waiting,
-						"role":    n.role(),
-					}).Debugln("send packet request")
-				}
-			}
+		if waiting >= p.Seqid {
+			break
 		}
+		time.Sleep(rqudelay)
+		stillwaiting := n.pqs.waiting(p.Senderid, p.Connid)
+		if stillwaiting >= p.Seqid || stillwaiting != waiting {
+			break
+		}
+		n.write(&packet{
+			Senderid: p.Senderid,
+			Connid:   p.Connid,
+			Seqid:    stillwaiting,
+			Cmd:      rqu,
+		})
+		if logrus.GetLevel() >= logrus.DebugLevel {
+			logrus.WithFields(logrus.Fields{
+				"Connid":       p.Connid,
+				"Seqid":        p.Seqid,
+				"Waiting":      waiting,
+				"StillWaiting": stillwaiting,
+				"role":         n.role(),
+			}).Debugln("send packet request")
+		}
+
 	default:
 		logrus.WithFields(logrus.Fields{
 			"Cmd": p.Cmd,

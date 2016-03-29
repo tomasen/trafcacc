@@ -27,7 +27,8 @@ type packetconn struct {
 	rdr bytes.Buffer
 
 	// Write
-	werr atomic.Value
+	werr     atomic.Value
+	parallel int32
 }
 
 func newConn(c pconn, senderid, connid uint32) *packetconn {
@@ -106,13 +107,21 @@ func (c *packetconn) Write(b0 []byte) (n int, err error) {
 			Connid:   c.connid,
 			Buf:      b[m : m+sz],
 		}
-
-		go func() {
+		if atomic.LoadInt32(&c.parallel) > 300 {
 			e0 := c.write(p)
 			if e0 != nil {
-				c.werr.Store(e0)
+				return 0, e0
 			}
-		}()
+		} else {
+			go func() {
+				atomic.AddInt32(&c.parallel, 1)
+				defer atomic.AddInt32(&c.parallel, -1)
+				e0 := c.write(p)
+				if e0 != nil {
+					c.werr.Store(e0)
+				}
+			}()
+		}
 
 	}
 
