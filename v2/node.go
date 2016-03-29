@@ -68,20 +68,22 @@ func (n *node) push(p *packet) {
 		waiting := n.pqs.add(p)
 		if waiting != 0 && waiting < p.Seqid {
 			time.Sleep(time.Second / 10)
-			swaiting := n.pqs.waiting(p.Senderid, p.Connid)
-			if swaiting != 0 && swaiting < p.Seqid && swaiting == waiting {
+			stillwaiting := n.pqs.waiting(p.Senderid, p.Connid)
+			if stillwaiting != 0 && stillwaiting < p.Seqid && stillwaiting == waiting {
 				n.write(&packet{
 					Senderid: p.Senderid,
 					Connid:   p.Connid,
-					Seqid:    swaiting,
+					Seqid:    stillwaiting,
 					Cmd:      rqu,
 				})
-				logrus.WithFields(logrus.Fields{
-					"Connid":  p.Connid,
-					"Seqid":   p.Seqid,
-					"Waiting": waiting,
-					"role":    n.role(),
-				}).Debugln("send packet request")
+				if logrus.GetLevel() >= logrus.DebugLevel {
+					logrus.WithFields(logrus.Fields{
+						"Connid":  p.Connid,
+						"Seqid":   p.Seqid,
+						"Waiting": waiting,
+						"role":    n.role(),
+					}).Debugln("send packet request")
+				}
 			}
 		}
 	default:
