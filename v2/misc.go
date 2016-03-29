@@ -3,6 +3,7 @@ package trafcacc
 import (
 	"net"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -27,8 +28,13 @@ func (t *trafcacc) Status() {
 		t.pool.mux.RLock()
 		// var us, ts, ur, tr string
 		var su, st, ru, rt uint64
+		var total, alived int
 		var latency string
 		for _, v := range t.pool.pool {
+			total++
+			if v.isAlive() {
+				alived++
+			}
 			s := atomic.LoadUint64(&v.sent)
 			r := atomic.LoadUint64(&v.recv)
 			if v.proto == udp {
@@ -42,7 +48,10 @@ func (t *trafcacc) Status() {
 				// ts += humanbyte(s) + ","
 				// tr += humanbyte(r) + ","
 			}
-			latency += humanize.Ftoa(float64(atomic.LoadInt64(&v.latency))/float64(time.Millisecond)) + ","
+			lc := int(atomic.LoadInt64(&v.latency) / int64(time.Millisecond))
+			if lc > 100 {
+				latency += strconv.Itoa(lc) + ","
+			}
 		}
 		t.pool.mux.RUnlock()
 		fields["Sent(U)"] = humanbyte(su) // + "(" + strings.TrimRight(us, ",") + ")"
@@ -56,6 +65,7 @@ func (t *trafcacc) Status() {
 
 		fields["PQLEN"] = t.pconn.pq().len()
 		fields["LATENCY"] = latency
+		fields["ALIVE"] = strconv.Itoa(alived) + "/" + strconv.Itoa(total)
 	}
 
 	logrus.WithFields(fields).Infoln(t.roleString(), "status")

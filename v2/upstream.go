@@ -110,7 +110,7 @@ func (u *upstream) close() {
 }
 
 func (u *upstream) isAlive() bool {
-	return keepalive > time.Duration(time.Now().UnixNano()-atomic.LoadInt64(&u.alive))
+	return atomic.LoadInt64(&u.latency) < int64(time.Second) && keepalive > time.Duration(time.Now().UnixNano()-atomic.LoadInt64(&u.alive))
 }
 
 type streampool struct {
@@ -297,7 +297,7 @@ func (pool *streampool) write(p *packet) error {
 			if err != nil {
 				logrus.WithFields(logrus.Fields{
 					"error": err,
-				}).Warnln("Dialer encode packet to upstream errror")
+				}).Warnln("encode packet to upstream errror")
 				pool.werr.Store(err)
 			}
 		}(u)
