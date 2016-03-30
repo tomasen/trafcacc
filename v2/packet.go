@@ -32,6 +32,7 @@ type packet struct {
 	Cmd      cmd
 	udp      bool
 	Time     int64
+	lock     sync.RWMutex
 }
 
 func (p *packet) copy() *packet {

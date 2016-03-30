@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"sync"
 	//_ "net/http/pprof"
 	"os"
 	"os/exec"
@@ -179,7 +180,12 @@ func BenchmarkPacketQueueAdd(b *testing.B) {
 	pqs.create(1, 1)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		p := &packet{uint32(1), uint32(1), uint32(i), nil, data, false, time.Now().UnixNano()}
+		p := &packet{uint32(1),
+			uint32(1), uint32(i),
+			nil, data, false,
+			time.Now().UnixNano(),
+			sync.RWMutex{},
+		}
 		pqs.add(p)
 		pqs.add(p)
 	}

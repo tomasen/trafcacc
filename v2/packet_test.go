@@ -3,13 +3,14 @@ package trafcacc
 import (
 	"fmt"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 )
 
 func TestPacket(t *testing.T) {
 	now := time.Now().UnixNano()
-	p0 := &packet{1, 2, 3, []byte("12"), close, false, now}
+	p0 := &packet{1, 2, 3, []byte("12"), close, false, now, sync.RWMutex{}}
 	udpbuf := make([]byte, buffersize)
 
 	n := p0.encode(udpbuf)

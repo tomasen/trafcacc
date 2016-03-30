@@ -2,13 +2,18 @@ package main
 
 import (
 	"flag"
+	"log"
 	"math/rand"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
 	"github.com/tomasen/trafcacc/v2"
+
+	"net/http"
+	_ "net/http/pprof"
 
 	"github.com/Sirupsen/logrus"
 )
@@ -35,6 +40,13 @@ func main() {
 			logrus.Infoln("log file open failed", err)
 		}
 		logrus.SetOutput(f)
+	}
+
+	if len(*pprof) > 0 {
+		runtime.SetBlockProfileRate(1)
+		go func() {
+			log.Println(http.ListenAndServe(*pprof, nil))
+		}()
 	}
 
 	var t trafcacc.Trafcacc

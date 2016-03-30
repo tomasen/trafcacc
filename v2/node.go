@@ -65,18 +65,19 @@ func (n *node) proc(u *upstream, p *packet) {
 	case rqu:
 		rp := n.pool.cache.get(p.Senderid, p.Connid, p.Seqid)
 		if rp != nil {
-			n.mux.Lock()
 			now := time.Now().UnixNano()
-			if atomic.LoadInt64(&rp.Time) < now-int64(rqudelay) {
-				atomic.StoreInt64(&rp.Time, now)
-				n.write(rp)
-				// logrus.WithFields(logrus.Fields{
-				// 	"Senderid": p.Senderid,
-				// 	"Connid":   p.Connid,
-				// 	"Seqid":    p.Seqid,
-				// }).Debugln("response to packet request")
+			tm := atomic.LoadInt64(&rp.Time)
+			if tm < now-int64(rqudelay) {
+				// TODO: avoid race atomic.StoreInt64(&p.Time, now
+				if atomic.CompareAndSwapInt64(&rp.Time, tm, now) {
+					n.write(rp)
+					logrus.WithFields(logrus.Fields{
+						"Senderid": p.Senderid,
+						"Connid":   p.Connid,
+						"Seqid":    p.Seqid,
+					}).Debugln("response to packet request")
+				}
 			}
-			n.mux.Unlock()
 		} else {
 			logrus.WithFields(logrus.Fields{
 				"Senderid": p.Senderid,
