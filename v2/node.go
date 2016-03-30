@@ -67,8 +67,8 @@ func (n *node) proc(u *upstream, p *packet) {
 		if rp != nil {
 			n.mux.Lock()
 			now := time.Now().UnixNano()
-			if rp.Time < now-int64(rqudelay) {
-				rp.Time = now
+			if atomic.LoadInt64(&p.Time) < now-int64(rqudelay) {
+				atomic.StoreInt64(&rp.Time, now)
 				n.write(rp)
 			}
 			n.mux.Unlock()

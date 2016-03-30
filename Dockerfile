@@ -1,6 +1,11 @@
 FROM golang:latest
 MAINTAINER Tomasen "https://github.com/tomasen"
 
+RUN apt-get update && apt-get install -y rsync \
+  apt-get clean autoclean && \
+  apt-get autoremove -y && \
+  rm -rf /var/lib/apt/lists/*
+
 # Copy the local package files to the container's workspace.
 ADD . /go/src/github.com/tomasen/trafcacc
 
