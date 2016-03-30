@@ -37,8 +37,8 @@ func (n *node) role() string {
 	return n.name
 }
 
-func (n *node) write(p *packet) error {
-	return n.pool.write(p)
+func (n *node) write(p *packet) {
+	n.pool.write(p)
 }
 
 func (n *node) proc(u *upstream, p *packet) {

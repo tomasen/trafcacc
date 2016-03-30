@@ -128,7 +128,6 @@ type streampool struct {
 	tcplen, udplen, alvlen int
 
 	// write
-	werr  atomic.Value
 	rn    uint32
 	cache *writeCache
 }
@@ -281,14 +280,7 @@ func (pool *streampool) remove(u *upstream) {
 	pool.Broadcast()
 }
 
-func (pool *streampool) write(p *packet) error {
-
-	if pool.werr.Load() != nil {
-		logrus.WithFields(logrus.Fields{
-			"error": "no successed write",
-		}).Warnln("encode packet to upstream error")
-		return pool.werr.Load().(error)
-	}
+func (pool *streampool) write(p *packet) {
 
 	// pick upstream tunnel and send packet
 	for _, u := range pool.pickupstreams() {
@@ -298,7 +290,6 @@ func (pool *streampool) write(p *packet) error {
 				logrus.WithFields(logrus.Fields{
 					"error": err,
 				}).Warnln("encode packet to upstream errror")
-				pool.werr.Store(err)
 			}
 		}(u)
 	}
@@ -308,5 +299,5 @@ func (pool *streampool) write(p *packet) error {
 		pool.cache.add(p)
 	}
 
-	return nil
+	return
 }

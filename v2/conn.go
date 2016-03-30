@@ -2,6 +2,7 @@ package trafcacc
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net"
 	"sync/atomic"
@@ -12,7 +13,7 @@ import (
 type pconn interface {
 	streampool() *streampool
 	pq() *packetQueue
-	write(*packet) error
+	write(*packet)
 	role() string
 }
 
@@ -100,19 +101,12 @@ func (c *packetconn) Write(b0 []byte) (n int, err error) {
 			Time:     time.Now().UnixNano(),
 		}
 		if atomic.LoadInt32(&c.parallel) > 300 {
-			e0 := c.write(p)
-			if e0 != nil {
-				c.werr.Store(e0)
-				return 0, e0
-			}
+			c.write(p)
 		} else {
 			go func() {
 				atomic.AddInt32(&c.parallel, 1)
 				defer atomic.AddInt32(&c.parallel, -1)
-				e0 := c.write(p)
-				if e0 != nil {
-					c.werr.Store(e0)
-				}
+				c.write(p)
 			}()
 		}
 
@@ -129,7 +123,7 @@ func (c *packetconn) Close() error {
 	if c.role() == "dialer" {
 		cmd = close
 	}
-	err := c.write(&packet{
+	c.write(&packet{
 		Senderid: c.senderid,
 		Seqid:    atomic.AddUint32(&c.seqid, 1),
 		Connid:   c.connid,
@@ -141,7 +135,9 @@ func (c *packetconn) Close() error {
 
 	c.pq().close(c.senderid, c.connid)
 
-	return err
+	c.werr.Store(errors.New("connection closed"))
+
+	return nil
 }
 
 // LocalAddr returns the local network address.
