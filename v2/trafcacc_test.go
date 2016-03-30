@@ -32,6 +32,8 @@ func TestMain(tm *testing.M) {
 			panic("case test took too long")
 		}()
 	} else {
+		logrus.SetLevel(logrus.DebugLevel)
+
 		// go func() {
 		// 	logrus.Println(http.ListenAndServe(":60063", nil))
 		// }()
@@ -184,7 +186,6 @@ func BenchmarkPacketQueueAdd(b *testing.B) {
 }
 
 func TestIPERF(t *testing.T) {
-	logrus.SetLevel(logrus.DebugLevel)
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)

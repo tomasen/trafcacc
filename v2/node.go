@@ -67,7 +67,7 @@ func (n *node) proc(u *upstream, p *packet) {
 		if rp != nil {
 			n.mux.Lock()
 			now := time.Now().UnixNano()
-			if atomic.LoadInt64(&p.Time) < now-int64(rqudelay) {
+			if atomic.LoadInt64(&rp.Time) < now-int64(rqudelay) {
 				atomic.StoreInt64(&rp.Time, now)
 				n.write(rp)
 				logrus.WithFields(logrus.Fields{
@@ -98,19 +98,21 @@ func (n *node) push(p *packet) {
 	case data: //data
 		waiting := n.pqs.add(p)
 		if waiting >= p.Seqid {
-			n.mux.Lock()
-			now := time.Now().UnixNano()
-			if now > n.lastack {
-				n.write(&packet{
-					Senderid: p.Senderid,
-					Connid:   p.Connid,
-					Seqid:    p.Seqid,
-					Cmd:      ack,
-					Time:     now,
-				})
-				n.lastack = now + int64(time.Second)
+			if waiting != ^uint32(0) {
+				n.mux.Lock()
+				now := time.Now().UnixNano()
+				if now > n.lastack {
+					n.write(&packet{
+						Senderid: p.Senderid,
+						Connid:   p.Connid,
+						Seqid:    p.Seqid,
+						Cmd:      ack,
+						Time:     now,
+					})
+					n.lastack = now + int64(time.Second)
+				}
+				n.mux.Unlock()
 			}
-			n.mux.Unlock()
 			break
 		}
 		time.Sleep(rqudelay)
