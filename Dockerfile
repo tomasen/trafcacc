@@ -7,7 +7,7 @@ ADD . /go/src/github.com/tomasen/trafcacc
 # change workdir, build and install
 WORKDIR /go/src/github.com/tomasen/trafcacc
 RUN go get .
-RUN go install
+RUN go install -race
 
 RUN rm -rf /go/src/*
 WORKDIR /go/bin
