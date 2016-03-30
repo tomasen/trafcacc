@@ -1,10 +1,6 @@
 package trafcacc
 
-import (
-	"sync"
-
-	"github.com/Sirupsen/logrus"
-)
+import "sync"
 
 type connCache struct {
 	sync.RWMutex
@@ -76,11 +72,11 @@ func (c *writeCache) ack(senderid, connid, seqid uint32) {
 	}
 
 	cn.Lock()
-	logrus.WithFields(logrus.Fields{
-		"senderid": senderid,
-		"connid":   connid,
-		"seqid":    seqid,
-	}).Debugln("clean cached packet")
+	// logrus.WithFields(logrus.Fields{
+	// 	"senderid": senderid,
+	// 	"connid":   connid,
+	// 	"seqid":    seqid,
+	// }).Debugln("clean cached packet")
 	for k := range cn.seqence {
 		if k <= seqid {
 			delete(cn.seqence, k)

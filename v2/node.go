@@ -70,11 +70,11 @@ func (n *node) proc(u *upstream, p *packet) {
 			if atomic.LoadInt64(&rp.Time) < now-int64(rqudelay) {
 				atomic.StoreInt64(&rp.Time, now)
 				n.write(rp)
-				logrus.WithFields(logrus.Fields{
-					"Senderid": p.Senderid,
-					"Connid":   p.Connid,
-					"Seqid":    p.Seqid,
-				}).Debugln("response to packet request")
+				// logrus.WithFields(logrus.Fields{
+				// 	"Senderid": p.Senderid,
+				// 	"Connid":   p.Connid,
+				// 	"Seqid":    p.Seqid,
+				// }).Debugln("response to packet request")
 			}
 			n.mux.Unlock()
 		} else {
@@ -82,7 +82,7 @@ func (n *node) proc(u *upstream, p *packet) {
 				"Senderid": p.Senderid,
 				"Connid":   p.Connid,
 				"Seqid":    p.Seqid,
-			}).Debugln("unable to fullfile packet request")
+			}).Warnln("unable to fullfile packet request")
 		}
 	}
 	return
