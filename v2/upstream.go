@@ -22,6 +22,7 @@ type upstream struct {
 	recv    uint64
 	jitter  int64
 	latency int64
+	closed  int32
 
 	// tcp only
 	encoder *gob.Encoder
@@ -107,10 +108,13 @@ func (u *upstream) close() {
 		u.udpconn.Close()
 		u.udpconn = nil
 	}
+	atomic.StoreInt32(&u.closed, 1)
 }
 
 func (u *upstream) isAlive() bool {
-	return atomic.LoadInt64(&u.latency) < int64(time.Second) && keepalive > time.Duration(time.Now().UnixNano()-atomic.LoadInt64(&u.alive))
+	return atomic.LoadInt32(&u.closed) == 0 &&
+		atomic.LoadInt64(&u.latency) < int64(time.Second) &&
+		keepalive > time.Duration(time.Now().UnixNano()-atomic.LoadInt64(&u.alive))
 }
 
 type streampool struct {
@@ -290,6 +294,7 @@ func (pool *streampool) write(p *packet) {
 				logrus.WithFields(logrus.Fields{
 					"error": err,
 				}).Warnln("encode packet to upstream errror")
+				up.close()
 			}
 		}(u)
 	}

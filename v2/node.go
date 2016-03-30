@@ -70,6 +70,11 @@ func (n *node) proc(u *upstream, p *packet) {
 			if atomic.LoadInt64(&p.Time) < now-int64(rqudelay) {
 				atomic.StoreInt64(&rp.Time, now)
 				n.write(rp)
+				logrus.WithFields(logrus.Fields{
+					"Senderid": p.Senderid,
+					"Connid":   p.Connid,
+					"Seqid":    p.Seqid,
+				}).Debugln("response to packet request")
 			}
 			n.mux.Unlock()
 		} else {
