@@ -57,7 +57,9 @@ func (u *upstream) sendpacket(p *packet) error {
 
 	switch u.proto {
 	case tcp:
+		p.lock.RLock()
 		err := u.encoder.Encode(p)
+		p.lock.RUnlock()
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
 				"error": err,
@@ -183,7 +185,7 @@ func (pool *streampool) ensureCap(pl []*upstream) []*upstream {
 	return pl
 }
 
-func (pool *streampool) pickupstreams() []*upstream {
+func (pool *streampool) pickupstreams(udp bool) []*upstream {
 	pool.waitforalive()
 
 	// pick udp and tcp equally
@@ -193,6 +195,9 @@ func (pool *streampool) pickupstreams() []*upstream {
 	// pick one of each
 
 	switch {
+	case udp && pool.udplen > 0:
+		rn := int(atomic.AddUint32(&pool.rn, 1) - 1)
+		return []*upstream{pool.udpool[rn%pool.udplen]}
 	case pool.tcplen > 0 && pool.udplen > 0:
 		// pick one of each
 		rn := int(atomic.AddUint32(&pool.rn, 1) - 1)
@@ -287,7 +292,7 @@ func (pool *streampool) remove(u *upstream) {
 func (pool *streampool) write(p *packet) {
 
 	// pick upstream tunnel and send packet
-	for _, u := range pool.pickupstreams() {
+	for _, u := range pool.pickupstreams(p.udp) {
 		go func(up *upstream) {
 			err := up.sendpacket(p)
 			if err != nil {

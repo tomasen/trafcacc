@@ -66,17 +66,19 @@ func (n *node) proc(u *upstream, p *packet) {
 		rp := n.pool.cache.get(p.Senderid, p.Connid, p.Seqid)
 		if rp != nil {
 			now := time.Now().UnixNano()
-			tm := atomic.LoadInt64(&rp.Time)
-			if tm < now-int64(rqudelay) {
-				// TODO: avoid race atomic.StoreInt64(&p.Time, now
-				if atomic.CompareAndSwapInt64(&rp.Time, tm, now) {
-					n.write(rp)
-					logrus.WithFields(logrus.Fields{
-						"Senderid": p.Senderid,
-						"Connid":   p.Connid,
-						"Seqid":    p.Seqid,
-					}).Debugln("response to packet request")
-				}
+			rp.lock.Lock()
+			if rp.Time < now-int64(rqudelay) {
+				rp.Time = now
+				//rp.udp = true
+				rp.lock.Unlock()
+				n.write(rp)
+				logrus.WithFields(logrus.Fields{
+					"Senderid": p.Senderid,
+					"Connid":   p.Connid,
+					"Seqid":    p.Seqid,
+				}).Debugln("response to packet request")
+			} else {
+				rp.lock.Unlock()
 			}
 		} else {
 			logrus.WithFields(logrus.Fields{
@@ -108,6 +110,7 @@ func (n *node) push(p *packet) {
 						Connid:   p.Connid,
 						Seqid:    p.Seqid,
 						Cmd:      ack,
+						udp:      true,
 						Time:     now,
 					})
 					n.lastack = now + int64(time.Second)
@@ -129,6 +132,7 @@ func (n *node) push(p *packet) {
 				Connid:   p.Connid,
 				Seqid:    stillwaiting,
 				Cmd:      rqu,
+				udp:      true,
 				Time:     time.Now().UnixNano(),
 			})
 			if logrus.GetLevel() >= logrus.DebugLevel {

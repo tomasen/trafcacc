@@ -53,6 +53,8 @@ func (p *packet) copy() *packet {
 }
 
 func (p *packet) encode(b []byte) (n int) {
+	p.lock.RLock()
+	defer p.lock.RUnlock()
 	defer func() {
 		if r := recover(); r != nil {
 			n = -1
@@ -62,7 +64,7 @@ func (p *packet) encode(b []byte) (n int) {
 	n += binary.PutUvarint(b[n:], uint64(p.Connid))
 	n += binary.PutUvarint(b[n:], uint64(p.Seqid))
 	n += binary.PutUvarint(b[n:], uint64(p.Cmd))
-	n += binary.PutUvarint(b[n:], uint64(atomic.LoadInt64(&p.Time)))
+	n += binary.PutUvarint(b[n:], uint64(p.Time))
 	n += binary.PutUvarint(b[n:], uint64(len(p.Buf)))
 	if len(p.Buf) > 0 {
 		n += copy(b[n:], p.Buf)
