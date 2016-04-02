@@ -18,11 +18,13 @@ type node struct {
 }
 
 func newNode(name string) *node {
-	return &node{
+	n := &node{
 		pqs:  newPacketQueue(),
 		pool: newStreamPool(),
 		name: name,
 	}
+	go n.rquloop()
+	return n
 }
 
 func (n *node) streampool() *streampool {
@@ -98,57 +100,61 @@ func (n *node) push(p *packet) {
 		n.pqs.add(p)
 		n.pool.cache.close(p.Senderid, p.Connid)
 	case data: //data
-		waiting := n.pqs.add(p)
-		if waiting >= p.Seqid {
-			if waiting != ^uint32(0) {
-				n.mux.Lock()
-				now := time.Now().UnixNano()
-				if now > n.lastack {
-					n.write(&packet{
-						Senderid: p.Senderid,
-						Connid:   p.Connid,
-						Seqid:    p.Seqid,
-						Cmd:      ack,
-						udp:      true,
-						Time:     now,
-					})
-					n.lastack = now + int64(time.Second)
-				}
-				n.mux.Unlock()
+		if n.pqs.add(p) >= p.Seqid {
+			n.mux.Lock()
+			now := time.Now().UnixNano()
+			if now > n.lastack {
+				n.write(&packet{
+					Senderid: p.Senderid,
+					Connid:   p.Connid,
+					Seqid:    p.Seqid,
+					Cmd:      ack,
+					udp:      true,
+					Time:     now,
+				})
+				n.lastack = now + int64(time.Second)
 			}
-			break
+			n.mux.Unlock()
 		}
-		time.Sleep(rqudelay)
-		stillwaiting := n.pqs.waiting(p.Senderid, p.Connid)
-		if stillwaiting >= p.Seqid || stillwaiting != waiting {
-			break
-		}
-		n.mux.Lock()
-		now := time.Now().UnixNano()
-		if now > n.lastrqu {
-			n.write(&packet{
-				Senderid: p.Senderid,
-				Connid:   p.Connid,
-				Seqid:    stillwaiting,
-				Cmd:      rqu,
-				udp:      true,
-				Time:     time.Now().UnixNano(),
-			})
-			if logrus.GetLevel() >= logrus.DebugLevel {
-				logrus.WithFields(logrus.Fields{
-					"Connid":       p.Connid,
-					"Seqid":        p.Seqid,
-					"Waiting":      waiting,
-					"StillWaiting": stillwaiting,
-					"role":         n.role(),
-				}).Debugln("send packet request")
-			}
-			n.lastrqu = now + int64(time.Second)
-		}
-		n.mux.Unlock()
 	default:
 		logrus.WithFields(logrus.Fields{
 			"Cmd": p.Cmd,
 		}).Warnln("unexpected Cmd in packet")
+	}
+}
+
+func (n *node) rquloop() {
+	for {
+		time.Sleep(rqudelay)
+		now := time.Now()
+		n.pqs.mux.RLock()
+		for k, v := range n.pqs.queues {
+			v.L.Lock()
+			_, exist := v.queue[v.waitingSeqid]
+			if v.maxseqid > v.waitingSeqid && !exist && v.waitTime.Before(now.Add(-rqudelay)) {
+				senderid, connid := unpacketKey(k)
+				waiting := v.waitingSeqid
+				v.waitTime = now.Add(rqudelay)
+				go func() {
+					n.write(&packet{
+						Senderid: senderid,
+						Connid:   connid,
+						Seqid:    waiting,
+						Cmd:      rqu,
+						udp:      true,
+						Time:     now.UnixNano(),
+					})
+					if logrus.GetLevel() >= logrus.DebugLevel {
+						logrus.WithFields(logrus.Fields{
+							"Connid":       connid,
+							"StillWaiting": waiting,
+							"role":         n.role(),
+						}).Debugln("send packet request")
+					}
+				}()
+			}
+			v.L.Unlock()
+		}
+		n.pqs.mux.RUnlock()
 	}
 }

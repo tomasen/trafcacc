@@ -3,6 +3,7 @@ package trafcacc
 import (
 	"encoding/gob"
 	"errors"
+	"math/rand"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -197,12 +198,9 @@ func (pool *streampool) pickupstreams(udp bool) []*upstream {
 	case pool.tcplen > 0 && pool.udplen > 0:
 		// pick one of each
 		rn := int(atomic.AddUint32(&pool.rn, 1) - 1)
-
 		return []*upstream{
 			pool.udpool[rn%pool.udplen],
-			pool.tcpool[(rn+pool.tcplen/2)%pool.tcplen],
-			// pool.udpool[(rn+1)%pool.udplen],
-			// pool.tcpool[(rn+1)%pool.udplen],
+			pool.tcpool[rn%pool.tcplen],
 		}
 	case pool.tcplen == 0 || pool.udplen == 0:
 		// pick 2 alived
@@ -273,7 +271,20 @@ func (pool *streampool) updatealive() (updated bool) {
 	pool.tcplen = tcpidx
 	pool.udplen = udpidx
 	pool.alvlen = aliveidx
+
+	if updated {
+		pool.shuffle(pool.tcpool, pool.tcplen)
+		pool.shuffle(pool.udpool, pool.udplen)
+		pool.shuffle(pool.alived, pool.alvlen)
+	}
 	return
+}
+
+func (pool *streampool) shuffle(arr []*upstream, l int) {
+	for i := 0; i < l; i++ {
+		j := rand.Intn(i + 1)
+		arr[i], arr[j] = arr[j], arr[i]
+	}
 }
 
 func (pool *streampool) remove(u *upstream) {

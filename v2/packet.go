@@ -130,6 +130,8 @@ type queue struct {
 	*sync.Cond
 	queue        map[uint32]*packet
 	waitingSeqid uint32
+	waitTime     time.Time
+	maxseqid     uint32
 	closed       int64
 }
 
@@ -227,8 +229,6 @@ func (pq *packetQueue) add(p *packet) (waitingSeqid uint32) {
 	q, exist := pq.queues[key]
 	pq.mux.Unlock()
 
-	waitingSeqid = ^uint32(0) // wait no more
-
 	if exist && q != nil {
 		q.L.Lock()
 		_, ok := q.queue[p.Seqid]
@@ -236,8 +236,10 @@ func (pq *packetQueue) add(p *packet) (waitingSeqid uint32) {
 			q.queue[p.Seqid] = p
 			defer q.Broadcast()
 
-			if p.Seqid >= q.waitingSeqid {
-				waitingSeqid = q.waitingSeqid
+			waitingSeqid = q.waitingSeqid
+
+			if p.Seqid > q.maxseqid {
+				q.maxseqid = p.Seqid
 			}
 		}
 		q.L.Unlock()
@@ -251,22 +253,6 @@ func (pq *packetQueue) add(p *packet) (waitingSeqid uint32) {
 		}).Warnln("packetQueue havn't been created, dropping")
 	}
 	return
-}
-
-func (pq *packetQueue) waiting(senderid, connid uint32) (waitingSeqid uint32) {
-	key := packetKey(senderid, connid)
-
-	pq.mux.Lock()
-	q, exist := pq.queues[key]
-	pq.mux.Unlock()
-
-	if exist && q != nil {
-		q.L.Lock()
-		waitingSeqid = q.waitingSeqid
-		q.L.Unlock()
-		return
-	}
-	return ^uint32(0)
 }
 
 func (pq *packetQueue) waitforArrived(senderid, connid uint32) {
@@ -320,6 +306,7 @@ func (pq *packetQueue) pop(senderid, connid uint32) *packet {
 				delete(q.queue, q.waitingSeqid)
 			}
 			q.waitingSeqid++
+			q.waitTime = time.Now()
 			q.L.Unlock()
 			defer q.Broadcast()
 			if p.Cmd == close || p.Cmd == closed {
