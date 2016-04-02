@@ -1,7 +1,7 @@
 FROM golang:latest
 MAINTAINER Tomasen "https://github.com/tomasen"
 
-RUN apt-get update && apt-get install -y rsync \
+RUN apt-get update && apt-get install -y rsync iperf3 \
   apt-get clean autoclean && \
   apt-get autoremove -y && \
   rm -rf /var/lib/apt/lists/*
