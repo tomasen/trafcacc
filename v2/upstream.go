@@ -120,11 +120,10 @@ func (u *upstream) isAlive() bool {
 }
 
 type streampool struct {
-	*sync.Cond
-	mux      *sync.RWMutex
+	*sync.RWMutex
 	pool     []*upstream
 	atomicid uint64
-	alive    bool
+	alive    int32
 	wg       sync.WaitGroup
 
 	// for pick up streams
@@ -139,12 +138,10 @@ type streampool struct {
 }
 
 func newStreamPool() *streampool {
-	mux := &sync.RWMutex{}
 	pl := &streampool{
 		// use RWMutex
-		Cond:  sync.NewCond(mux),
-		mux:   mux,
-		cache: newWriteCache(),
+		RWMutex: &sync.RWMutex{},
+		cache:   newWriteCache(),
 	}
 
 	go pl.updateloop()
@@ -152,10 +149,9 @@ func newStreamPool() *streampool {
 }
 
 func (pool *streampool) append(u *upstream, grp int) {
-	pool.L.Lock()
+	pool.Lock()
 	defer func() {
-		pool.L.Unlock()
-		pool.Broadcast()
+		pool.Unlock()
 	}()
 
 	if u.uuid != 0 {
@@ -189,8 +185,8 @@ func (pool *streampool) pickupstreams(udp bool) []*upstream {
 	pool.waitforalive()
 
 	// pick udp and tcp equally
-	pool.mux.RLock()
-	defer pool.mux.RUnlock()
+	pool.RLock()
+	defer pool.RUnlock()
 
 	// pick one of each
 
@@ -219,33 +215,35 @@ func (pool *streampool) pickupstreams(udp bool) []*upstream {
 	}
 	logrus.Warnln("no upstream avalible for pick")
 	return nil
-
 }
 
 func (pool *streampool) waitforalive() {
-	pool.L.Lock()
-	for !pool.alive {
-		pool.Wait()
+
+	for {
+		if atomic.LoadInt32(&pool.alive) != 0 {
+			break
+		}
+		<-time.After(time.Millisecond * 200)
 	}
-	pool.L.Unlock()
+
 }
 
 func (pool *streampool) updateloop() {
 	for {
-		pool.L.Lock()
-		for !pool.updatealive() {
-			pool.Wait()
-		}
-		pool.L.Unlock()
-		pool.Broadcast()
-		if pool.alive {
+		pool.updatealive()
+
+		if atomic.LoadInt32(&pool.alive) != 0 {
 			<-time.After(time.Second)
+		} else {
+			<-time.After(time.Millisecond * 200)
 		}
 	}
 }
 
 // check if there is any alive upstream
 func (pool *streampool) updatealive() (updated bool) {
+	pool.Lock()
+	defer pool.Unlock()
 	var tcpidx, udpidx, aliveidx int
 	for _, v := range pool.pool {
 		if v.isAlive() {
@@ -262,14 +260,14 @@ func (pool *streampool) updatealive() (updated bool) {
 		}
 	}
 	if aliveidx > 0 {
-		if pool.alive != true {
+		if atomic.LoadInt32(&pool.alive) == 0 {
 			updated = true
-			pool.alive = true
+			atomic.StoreInt32(&pool.alive, 1)
 		}
 	} else {
-		if pool.alive != false {
+		if atomic.LoadInt32(&pool.alive) != 0 {
 			updated = true
-			pool.alive = false
+			atomic.StoreInt32(&pool.alive, 0)
 		}
 	}
 	pool.tcplen = tcpidx
@@ -279,14 +277,13 @@ func (pool *streampool) updatealive() (updated bool) {
 }
 
 func (pool *streampool) remove(u *upstream) {
-	pool.L.Lock()
+	pool.Lock()
 	for k, v := range pool.pool {
 		if v.uuid == u.uuid {
 			pool.pool = append(pool.pool[:k], pool.pool[k+1:]...)
 		}
 	}
-	pool.L.Unlock()
-	pool.Broadcast()
+	pool.Unlock()
 }
 
 func (pool *streampool) write(p *packet) {

@@ -59,7 +59,6 @@ func (n *node) proc(u *upstream, p *packet) {
 	switch p.Cmd {
 	case ping, pong:
 		atomic.StoreInt64(&u.alive, now)
-		n.pool.Broadcast()
 	case ack:
 		n.pool.cache.ack(p.Senderid, p.Connid, p.Seqid)
 	case rqu:

@@ -112,7 +112,6 @@ func (d *dialer) connect(u *upstream) {
 		go d.pingloop(u)
 
 		atomic.StoreInt64(&u.alive, time.Now().UnixNano())
-		d.pool.Broadcast()
 
 		if u.proto == tcp {
 			d.readtcp(u)

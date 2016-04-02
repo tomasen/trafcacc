@@ -25,7 +25,7 @@ func (t *trafcacc) Status() {
 	}
 
 	if logrus.GetLevel() >= logrus.DebugLevel {
-		t.pool.mux.RLock()
+		t.pool.RLock()
 		// var us, ts, ur, tr string
 		var su, st, ru, rt uint64
 		var total, alived int
@@ -53,7 +53,7 @@ func (t *trafcacc) Status() {
 				latency += strconv.Itoa(lc) + ","
 			}
 		}
-		t.pool.mux.RUnlock()
+		t.pool.RUnlock()
 		fields["Sent(U)"] = humanbyte(su) // + "(" + strings.TrimRight(us, ",") + ")"
 		fields["Recv(U)"] = humanbyte(ru) // + "(" + strings.TrimRight(ur, ",") + ")"
 
