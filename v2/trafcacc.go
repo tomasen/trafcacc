@@ -13,7 +13,7 @@ const (
 	buffersize = 4096 * 2
 	mtu        = buffersize - 100
 	keepalive  = time.Second * 30
-	rqudelay   = time.Millisecond * 200
+	rqudelay   = time.Millisecond * 300
 )
 
 const (
