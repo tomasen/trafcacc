@@ -108,30 +108,47 @@ func (d *dialer) connect(u *upstream) {
 		case udp:
 		}
 
+		atomic.StoreInt32(&u.closed, 0)
+
 		// begin to ping
 		go d.pingloop(u)
 
 		atomic.StoreInt64(&u.alive, time.Now().UnixNano())
 
-		if u.proto == tcp {
-			d.readtcp(u)
-		} else {
-			d.readudp(u)
-		}
+		d.readloop(u)
 
 		u.close()
 	}
 }
 
-func (d *dialer) readtcp(u *upstream) {
+func (d *dialer) readloop(u *upstream) {
 	for {
+		if atomic.LoadInt32(&u.closed) != 0 {
+			logrus.WithField("proto", u.proto).Warnln("dialer upstream is closed")
+			return
+		}
 		p := packet{}
-		err := u.decoder.Decode(&p)
-		if err != nil {
-			logrus.WithFields(logrus.Fields{
-				"error": err,
-			}).Warnln("Dialer docode upstream packet")
-			break
+		switch u.proto {
+		case tcp:
+			err := u.decoder.Decode(&p)
+			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"error": err,
+				}).Warnln("Dialer docode upstream packet")
+				return
+			}
+		case udp:
+			udpbuf := make([]byte, buffersize)
+			n, err := u.conn.Read(udpbuf)
+			if err != nil {
+				logrus.WithError(err).Warnln("dialer Read UDP error")
+				return
+			}
+			if err := decodePacket(udpbuf[:n], &p); err != nil {
+				logrus.WithError(err).Warnln("dialer gop decode from udp error")
+				continue
+			}
+			p.udp = true
 		}
 
 		d.proc(u, &p)
@@ -142,25 +159,6 @@ func (d *dialer) proc(u *upstream, p *packet) {
 	d.node.proc(u, p)
 	if p.Cmd == data {
 		go d.push(p)
-	}
-}
-
-func (d *dialer) readudp(u *upstream) {
-	for {
-		p := packet{}
-		udpbuf := make([]byte, buffersize)
-		n, err := u.conn.Read(udpbuf)
-		if err != nil {
-			logrus.WithError(err).Warnln("dialer Read UDP error")
-			break
-		}
-		if err := decodePacket(udpbuf[:n], &p); err != nil {
-			logrus.WithError(err).Warnln("dialer gop decode from udp error")
-			continue
-		}
-		p.udp = true
-
-		d.proc(u, &p)
 	}
 }
 

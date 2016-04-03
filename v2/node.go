@@ -109,7 +109,6 @@ func (n *node) push(p *packet) {
 					Connid:   p.Connid,
 					Seqid:    p.Seqid,
 					Cmd:      ack,
-					udp:      true,
 					Time:     now,
 				})
 				n.lastack = now + int64(time.Second)
